@@ -1,5 +1,4 @@
 from datetime import date
-from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -14,10 +13,23 @@ class TripRequest(BaseModel):
     preferences: str | None = None
     constraints: TripConstraints = Field(default_factory=TripConstraints)
 
+    @field_validator("origin", "destination")
+    @classmethod
+    def validate_non_empty_location(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be empty")
+        return stripped
+
     @model_validator(mode="after")
-    def validate_dates(self) -> "TripRequest":
+    def validate_request(self) -> "TripRequest":
         if self.end_date < self.start_date:
             raise ValueError("end_date must be on or after start_date")
+        if self.constraints.max_nights_per_stop > self.days:
+            raise ValueError(
+                f"max_nights_per_stop ({self.constraints.max_nights_per_stop}) "
+                f"cannot exceed trip length ({self.days} days)"
+            )
         return self
 
     @property

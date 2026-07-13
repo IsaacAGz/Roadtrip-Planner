@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 DEFAULT_EXCLUDED_CATEGORIES = ["extremely_dangerous", "illegal"]
 DEFAULT_ALLOWED_COUNTRIES = ["US", "MX"]
@@ -16,7 +16,10 @@ class TripConstraints(BaseModel):
     max_detour_km_per_stop: float = Field(default=30.0, ge=0.0, le=100.0)
     max_backtracking_percent: float = Field(default=15.0, ge=0.0, le=50.0)
     require_progress_toward_destination: bool = True
-    allowed_countries: list[str] = Field(default_factory=lambda: list(DEFAULT_ALLOWED_COUNTRIES))
+    allowed_countries: list[str] = Field(
+        default_factory=lambda: list(DEFAULT_ALLOWED_COUNTRIES),
+        min_length=1,
+    )
     excluded_poi_categories: list[str] = Field(
         default_factory=lambda: list(DEFAULT_EXCLUDED_CATEGORIES)
     )
@@ -34,6 +37,16 @@ class TripConstraints(BaseModel):
     @classmethod
     def normalize_categories(cls, value: list[str]) -> list[str]:
         return [category.strip().lower().replace(" ", "_") for category in value]
+
+    @model_validator(mode="after")
+    def validate_cross_field_rules(self) -> "TripConstraints":
+        if not self.allow_extended_stays and self.max_nights_per_stop > 1:
+            raise ValueError(
+                "max_nights_per_stop > 1 requires allow_extended_stays=true"
+            )
+        if self.allow_return_stops and self.max_backtracking_percent < 25.0:
+            self.max_backtracking_percent = 25.0
+        return self
 
     def effective_require_progress(self) -> bool:
         if self.allow_return_stops:
