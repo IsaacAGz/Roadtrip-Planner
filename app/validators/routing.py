@@ -14,7 +14,6 @@ def _day_leg(day_plan: DayPlan) -> tuple[LatLon, LatLon] | None:
         or day_plan.leg_end_lat is None
         or day_plan.leg_end_lon is None
     ):
-        start = (day_plan.overnight.lat, day_plan.overnight.lon)
         return None
     origin = (day_plan.leg_start_lat, day_plan.leg_start_lon)
     destination = (day_plan.leg_end_lat, day_plan.leg_end_lon)
