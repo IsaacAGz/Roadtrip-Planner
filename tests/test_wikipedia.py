@@ -6,6 +6,15 @@ import pytest
 from app.tools.wikipedia import search_wikipedia_nearby
 
 
+@pytest.fixture(autouse=True)
+def mock_settings():
+    settings = MagicMock()
+    settings.wikipedia_api_url = "https://en.wikipedia.org/w/api.php"
+    settings.nominatim_user_agent = "RoadtripPlanner/1.0 (test@example.com)"
+    with patch("app.tools.wikipedia.get_settings", return_value=settings):
+        yield
+
+
 def _mock_httpx_client(*, json_data: dict, raise_request_error: bool = False):
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock(return_value=None)
