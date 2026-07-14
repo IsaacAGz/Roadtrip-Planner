@@ -9,6 +9,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ci-dummy-key-not-used-in-tests
 
     steps:
       - name: Checkout
