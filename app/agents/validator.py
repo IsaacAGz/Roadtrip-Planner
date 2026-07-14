@@ -6,14 +6,14 @@ from app.config import get_settings
 from app.models.itinerary import RoadtripPlan
 from app.models.trip import TripRequest
 from app.models.validation import RuleViolation, ValidationResult
-from app.prompts.validator import VALIDATOR_HUMAN_TEMPLATE, VALIDATOR_SYSTEM_PROMPT
+from app.prompts.validator import (
+    STRUCTURED_VALIDATOR_SYSTEM,
+    VALIDATOR_HUMAN_TEMPLATE,
+    VALIDATOR_SYSTEM_PROMPT,
+)
 from app.tools.routing import get_driving_route
 
 VALIDATOR_TOOLS = [get_driving_route]
-
-STRUCTURED_VALIDATOR_SYSTEM = """Based on the validation review, produce a ValidationResult.
-Set approved=true only if the plan is realistic and matches user preferences.
-Otherwise provide specific replan_instructions."""
 
 
 def _extract_agent_output(result: dict) -> str:

@@ -131,6 +131,47 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/trips/plan" -Method POST -ContentT
 
 Planning requests typically take **30 seconds to a few minutes** (LLM calls + external APIs + possible replans).
 
+## Testing
+
+### Unit tests
+
+Unit tests cover validators and request models. They run without starting the server or calling OpenAI.
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m pytest tests/ -v
+```
+
+| Test file | Covers |
+|-----------|--------|
+| `tests/test_constraints.py` | Cross-field constraint rules, `TripRequest` validation |
+| `tests/test_structure.py` | STRUCT-001, STRUCT-002, STRUCT-003, STRUCT-004 |
+| `tests/test_routing.py` | ROUTE-001, ROUTE-002 (mocked OSRM) |
+| `tests/test_driving.py` | DRIVE-001, DRIVE-002, SCHED-001 (mocked OSRM) |
+| `tests/test_geography.py` | GEO-001 country allowlist |
+| `tests/test_poi.py` | POI-003 excluded categories |
+| `tests/test_warnings.py` | Borderline DRIVE, SCHED, ROUTE warnings |
+
+Run a single file:
+
+```powershell
+python -m pytest tests/test_driving.py -v
+```
+
+### End-to-end tests
+
+E2E tests hit the live API. Start the server first (`uvicorn`), then send a request via curl or http://127.0.0.1:8000/docs.
+
+Example (Git Bash) — 2-day trip to verify overnight-city rules:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/trips/plan" \
+  -H "Content-Type: application/json" \
+  -d '{"origin":"San Jose, CA","destination":"Monterey, CA","start_date":"2026-07-15","end_date":"2026-07-16","preferences":"relaxed pace, direct coastal route","constraints":{"max_driving_hours_per_day":6.0,"max_stops_per_day":2,"max_replan_attempts":2}}'
+```
+
+Check `validation.approved` and that consecutive days use **different** `overnight.city` values unless `allow_extended_stays` is true.
+
 ## Constraints
 
 | Field | Default | Notes |

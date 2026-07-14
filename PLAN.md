@@ -99,8 +99,20 @@ return best-effort plan + approved=false
 ```
 Roadtrip_Planner/
 ├── PLAN.md                       # This document
+├── README.md                     # Setup, API usage, testing
+├── .env.example                  # Environment variable template
 ├── requirements.txt
+├── requirements-dev.txt          # pytest, pytest-asyncio
+├── pytest.ini
 ├── .env                          # API keys (not committed)
+├── tests/
+│   ├── test_constraints.py       # Cross-field 422 rules, TripRequest
+│   ├── test_structure.py         # STRUCT-001..004
+│   ├── test_routing.py           # ROUTE-001, ROUTE-002
+│   ├── test_driving.py           # DRIVE-001, DRIVE-002, SCHED-001
+│   ├── test_geography.py         # GEO-001
+│   ├── test_poi.py               # POI-003
+│   └── test_warnings.py          # Borderline hard-validator warnings
 ├── app/
 │   ├── main.py                   # FastAPI app + /health
 │   ├── config.py                 # pydantic-settings
@@ -118,7 +130,8 @@ Roadtrip_Planner/
 │   │   ├── wikipedia.py
 │   │   └── weather.py
 │   ├── validators/
-│   │   ├── hard.py               # Orchestrates all code-level checks
+│   │   ├── hard.py               # Orchestrates hard checks + warnings
+│   │   ├── warnings.py           # Borderline DRIVE/SCHED/ROUTE warnings
 │   │   ├── driving.py            # DRIVE-001, SCHED-001
 │   │   ├── routing.py            # ROUTE-001, ROUTE-002
 │   │   ├── structure.py          # STRUCT-001..004
@@ -213,6 +226,15 @@ If replanning is exhausted, the API returns the last draft with `approved: false
 | `allow_return_stops` | false | Revisit same city on return leg |
 | `max_replan_attempts` | 2 | Drives FastAPI retry loop |
 
+**Cross-field validation (422 before agents run):**
+
+| Rule | Behavior |
+|------|----------|
+| `max_nights_per_stop > 1` without `allow_extended_stays=true` | Reject |
+| `max_nights_per_stop` > trip length (days) | Reject |
+| Empty `origin` or `destination` | Reject |
+| `allow_return_stops=true` with `max_backtracking_percent < 25` | Clamp to 25% |
+
 ### RoadtripPlan
 
 | Field | Description |
@@ -270,15 +292,16 @@ Each violation includes: `rule_id`, `severity` (`error` \| `warning` \| `info`),
 
 ### Wikipedia
 
-- **Text search:** `action=query&list=search&srsearch={topic} {location}`
-- **Geo search:** Available when lat/lon known
+- **Text search:** `action=query&list=search&srsearch={topic} {location}` (implemented)
+- **Geo search:** Planned when lat/lon known (not yet implemented)
 - **Returns:** Top 3–5 article titles + snippets
+- **Requires:** `User-Agent` header (uses `NOMINATIM_USER_AGENT`); HTTP errors return a message instead of crashing the planner
 
 ### OpenWeatherMap
 
 - **Endpoint:** `GET /data/2.5/forecast?q={city}&units=metric`
-- **Requires:** `OPENWEATHER_API_KEY` in `.env`
-- **Returns:** 3-hour interval forecasts for packing hints and soft validation
+- **Requires:** `OPENWEATHER_API_KEY` in `.env` (optional — planner skips weather gracefully if unset)
+- **Returns:** 3-hour interval forecasts aggregated by day for packing hints and soft validation
 
 ---
 
@@ -308,12 +331,13 @@ Each violation includes: `rule_id`, `severity` (`error` \| `warning` \| `info`),
 
 ## 9. Validation Rules
 
-Validation is split into three layers:
+Validation is split into four layers:
 
 | Layer | Enforced by | Examples |
 |-------|-------------|----------|
 | **Hard rules** | Python + OSRM | Max driving hours, detour limits, schema |
-| **Configurable rules** | API request (with caps) | Max hours/day, stops/day, scenic preference |
+| **Hard warnings** | Python + OSRM (`warnings.py`) | Borderline driving, detours, backtracking, stop count |
+| **Configurable rules** | API request (with caps) | Max hours/day, stops/day, cross-field 422 checks |
 | **Soft rules** | Validator agent | Pacing, preference fit, weather vs activities |
 
 ### Hard validation pipeline (order)
@@ -324,6 +348,18 @@ Validation is split into three layers:
 4. DRIVE-001 — daily driving cap (OSRM-verified)
 5. ROUTE-001 — per-stop detour
 6. ROUTE-002 — backtracking percent
+7. **Warnings** — borderline cases collected via `collect_warnings()` (do not block approval alone)
+
+### Hard validation warnings
+
+Warnings use `severity: "warning"` and are passed to the Validator agent. They do not set `approved=false` by themselves.
+
+| Rule | Threshold | Meaning |
+|------|-----------|---------|
+| DRIVE-001 | ≥ 90% of `max_driving_hours_per_day` | Daily driving near limit |
+| SCHED-001 | `len(stops) == max_stops_per_day` | Stop count at cap |
+| ROUTE-001 | ≥ 80% of `max_detour_km_per_stop` | Detour near limit but valid |
+| ROUTE-002 | ≥ 80% of `max_backtracking_percent` | Total backtracking near limit |
 
 ---
 
@@ -403,6 +439,9 @@ The Validator agent reviews plans that pass hard validation and checks:
 - **Preferences:** Were user preferences respected (scenic routes, food, family-friendly)?
 - **Weather fit:** Do outdoor activities conflict with forecast conditions?
 - **Coherence:** Does the narrative match structured data?
+- **Hard warnings:** Uses `ValidationReport.warnings` as advisory signals — weigh against preferences (e.g. reject a "relaxed pace" plan with DRIVE-001 warnings and long stop durations)
+
+The Validator receives hard validation warnings in its prompt (`prompts/validator.py`). Warnings alone do not require rejection; multiple warnings on the same day or conflicts with preferences may.
 
 **Output:** `ValidationResult { approved, issues, replan_instructions, severity }`
 
@@ -416,7 +455,7 @@ The Validator **cannot** approve a plan that has hard failures — that gate is 
 
 ```env
 OPENAI_API_KEY=sk-...
-OPENWEATHER_API_KEY=...          # Required for live weather forecasts
+OPENWEATHER_API_KEY=...          # Optional — live weather forecasts
 NOMINATIM_USER_AGENT=RoadtripPlanner/1.0 (you@example.com)
 
 # Optional — LangSmith tracing (already configured)
@@ -424,6 +463,8 @@ LANGSMITH_API_KEY=...
 LANGSMITH_TRACING=true
 LANGSMITH_PROJECT=Roadtrip_Planner
 ```
+
+See `.env.example` for a full template.
 
 ### Settings (`app/config.py`)
 
@@ -457,10 +498,17 @@ python -m uvicorn app.main:app --reload
 - [x] Validator agent (soft checks + OSRM re-verification)
 - [x] Tools: Nominatim, OSRM, Wikipedia, OpenWeatherMap
 - [x] Hard validators: DRIVE-001, ROUTE-001/002, STRUCT-001–004, GEO-001, POI-003
+- [x] Hard-validator warnings (borderline DRIVE/SCHED/ROUTE cases)
 - [x] `TripConstraints` with API-configurable rules (8h driving cap)
+- [x] Cross-field constraint validation (422 before agents run)
 - [x] FastAPI retry loop for replanning
 - [x] Default countries: US, MX; excluded POIs: dangerous/illegal
 - [x] Multi-night stays and return stops (constraint-gated)
+- [x] Graceful HTTP error handling for Wikipedia and OpenWeather tools
+- [x] Planner prompts with STRUCT-004 overnight-stay guidance
+- [x] Validator prompts that interpret hard-validation warnings
+- [x] README, `.env.example`
+- [x] Unit tests (42 tests: constraints, structure, routing, driving, geography, poi, warnings)
 
 ---
 
@@ -469,10 +517,10 @@ python -m uvicorn app.main:app --reload
 | Phase | Feature |
 |-------|---------|
 | Orchestration | LangGraph state machine (`plan → validate → replan` nodes) |
-| Documentation | README, `.env.example` |
-| Testing | Unit tests for validators and OSRM helpers |
+| CI | GitHub Actions workflow running `pytest` |
 | Infrastructure | Redis caching, streaming responses, frontend UI |
 | Routing | Self-hosted OSRM, toll/highway/scenic profiles |
+| POIs | Wikipedia geosearch when lat/lon known |
 | Agents | Dedicated Weather sub-agent |
 | Preferences | Structured pace (`relaxed` / `moderate` / `packed`), budget, accessibility |
 | Validation | `fail_on_weather_warnings`, precipitation/temperature thresholds |
@@ -482,9 +530,12 @@ python -m uvicorn app.main:app --reload
 ## 15. Operational Notes
 
 - **Nominatim:** Respect 1 req/sec; use in-memory geocode cache per request
+- **Wikipedia:** Send a descriptive `User-Agent`; tool returns error messages on HTTP failure instead of crashing
+- **OpenWeatherMap:** Optional API key; planner continues with generic packing tips if unset
 - **OSRM demo server:** Not for production traffic; self-host for scale
 - **Partial failure:** Return last draft + violations when replan loop exhausts attempts
-- **422 errors:** Invalid cross-field constraints rejected before agents run
+- **422 errors:** Invalid cross-field constraints rejected before agents run (see TripConstraints cross-field table)
+- **Unit tests:** `python -m pytest tests/ -v` (no server or API keys required)
 - **LangSmith:** Existing `.env` tracing vars provide agent observability without extra code
 
 ---
@@ -501,4 +552,4 @@ python -m uvicorn app.main:app --reload
 
 ---
 
-*Last updated: July 2026*
+*Last updated: July 13, 2026*
