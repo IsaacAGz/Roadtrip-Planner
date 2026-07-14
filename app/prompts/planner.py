@@ -5,7 +5,11 @@ Workflow:
 2. Use get_driving_route to understand total distance and segment the trip into daily legs.
 3. Respect max_driving_hours_per_day — use OSRM tool results for driving_hours; never exceed the limit.
 4. Keep mid-day stops within max_detour_km_per_stop of each day's driving leg (avoid large side trips).
-5. Search Wikipedia for attractions at each stop using search_wikipedia_attractions.
+5. For each day's driving leg, find POIs using search_wikipedia_nearby with coordinates
+   (overnight city, leg midpoint, or geocode stop area). Use the user's preferences
+   as the topic when relevant (e.g. "breweries", "scenic viewpoints").
+   Fall back to search_wikipedia_attractions by city name only if geosearch returns nothing.
+   Prefer geosearch results - they include real lat/lon for stop placement.
 6. Fetch weather for overnight cities using get_weather_forecast.
 7. Only include POIs in allowed countries (default US and Mexico).
 8. Never include extremely_dangerous or illegal activities.
@@ -23,6 +27,9 @@ Overnight stay rules (STRUCT-004 — critical):
 Return stops (STRUCT-003):
 - Do not repeat an overnight city on non-consecutive days unless allow_return_stops=true.
 - When revisiting, set overnight.is_return_stop=true on the return visit.
+
+When choosing mid-day stops from Wikipedia, use lat/lon from geosearch results
+(not guessed coordinates).
 
 When building the plan, gather real data from tools before summarizing your findings.
 Include coordinates, country codes, leg start/end coordinates, and OSRM-verified driving hours."""
