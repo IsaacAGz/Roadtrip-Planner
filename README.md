@@ -6,7 +6,7 @@ For full architecture and design details, see [PLAN.md](PLAN.md).
 
 ## Features
 
-- **Planner agent** — geocodes routes, finds POIs (Wikipedia), fetches weather, and drafts an itinerary
+- **Planner agent** — geocodes routes, finds POIs via Wikipedia text search and geosearch, fetches weather, and drafts an itinerary
 - **Hard validators** — Python + OSRM checks for driving hours, detours, backtracking, structure, geography, and POI rules
 - **Validator agent** — soft checks for pacing, preferences, and weather fit
 - **Replan loop** — automatically retries with structured feedback when validation fails
@@ -135,12 +135,14 @@ Planning requests typically take **30 seconds to a few minutes** (LLM calls + ex
 
 ### Unit tests
 
-Unit tests cover validators and request models. They run without starting the server or calling OpenAI.
+Unit tests cover validators, request models, and tools. They run without starting the server or calling OpenAI.
 
 ```powershell
 python -m pip install -r requirements-dev.txt
 python -m pytest tests/ -v
 ```
+
+GitHub Actions runs the same test suite on every pull request to `main`.
 
 | Test file | Covers |
 |-----------|--------|
@@ -151,6 +153,7 @@ python -m pytest tests/ -v
 | `tests/test_geography.py` | GEO-001 country allowlist |
 | `tests/test_poi.py` | POI-003 excluded categories |
 | `tests/test_warnings.py` | Borderline DRIVE, SCHED, ROUTE warnings |
+| `tests/test_wikipedia.py` | Wikipedia geosearch tool (mocked HTTP) |
 
 Run a single file:
 

@@ -112,7 +112,8 @@ Roadtrip_Planner/
 │   ├── test_driving.py           # DRIVE-001, DRIVE-002, SCHED-001
 │   ├── test_geography.py         # GEO-001
 │   ├── test_poi.py               # POI-003
-│   └── test_warnings.py          # Borderline hard-validator warnings
+│   ├── test_warnings.py          # Borderline hard-validator warnings
+│   └── test_wikipedia.py         # Wikipedia geosearch tool
 ├── app/
 │   ├── main.py                   # FastAPI app + /health
 │   ├── config.py                 # pydantic-settings
@@ -292,9 +293,9 @@ Each violation includes: `rule_id`, `severity` (`error` \| `warning` \| `info`),
 
 ### Wikipedia
 
-- **Text search:** `action=query&list=search&srsearch={topic} {location}` (implemented)
-- **Geo search:** Planned when lat/lon known (not yet implemented)
-- **Returns:** Top 3–5 article titles + snippets
+- **Text search:** `action=query&list=search&srsearch={topic} {location}` (implemented via `search_wikipedia_attractions`)
+- **Geo search:** `action=query&list=geosearch&gscoord={lat}|{lon}&gsradius={meters}` (implemented via `search_wikipedia_nearby`)
+- **Returns:** Text search — top 3–5 article titles + snippets; geosearch — titles + lat/lon + distance (meters)
 - **Requires:** `User-Agent` header (uses `NOMINATIM_USER_AGENT`); HTTP errors return a message instead of crashing the planner
 
 ### OpenWeatherMap
@@ -313,7 +314,8 @@ Each violation includes: `rule_id`, `severity` (`error` \| `warning` \| `info`),
 |------|---------|
 | `geocode_location` | City/landmark → coordinates + country |
 | `get_driving_route` | Segment distance (km) + duration (hours) |
-| `search_wikipedia_attractions` | POI discovery |
+| `search_wikipedia_attractions` | POI discovery by place name (text search) |
+| `search_wikipedia_nearby` | POI discovery near coordinates (geosearch) |
 | `get_weather_forecast` | Forecast for overnight cities |
 
 ### Validator tools
@@ -505,10 +507,12 @@ python -m uvicorn app.main:app --reload
 - [x] Default countries: US, MX; excluded POIs: dangerous/illegal
 - [x] Multi-night stays and return stops (constraint-gated)
 - [x] Graceful HTTP error handling for Wikipedia and OpenWeather tools
+- [x] Wikipedia geosearch tool (`search_wikipedia_nearby`)
+- [x] GitHub Actions CI (pytest on pull requests to `main`)
 - [x] Planner prompts with STRUCT-004 overnight-stay guidance
 - [x] Validator prompts that interpret hard-validation warnings
 - [x] README, `.env.example`
-- [x] Unit tests (42 tests: constraints, structure, routing, driving, geography, poi, warnings)
+- [x] Unit tests (47 tests: constraints, structure, routing, driving, geography, poi, warnings, wikipedia)
 
 ---
 
@@ -517,10 +521,8 @@ python -m uvicorn app.main:app --reload
 | Phase | Feature |
 |-------|---------|
 | Orchestration | LangGraph state machine (`plan → validate → replan` nodes) |
-| CI | GitHub Actions workflow running `pytest` |
 | Infrastructure | Redis caching, streaming responses, frontend UI |
 | Routing | Self-hosted OSRM, toll/highway/scenic profiles |
-| POIs | Wikipedia geosearch when lat/lon known |
 | Agents | Dedicated Weather sub-agent |
 | Preferences | Structured pace (`relaxed` / `moderate` / `packed`), budget, accessibility |
 | Validation | `fail_on_weather_warnings`, precipitation/temperature thresholds |
@@ -552,4 +554,4 @@ python -m uvicorn app.main:app --reload
 
 ---
 
-*Last updated: July 13, 2026*
+*Last updated: July 14, 2026*
