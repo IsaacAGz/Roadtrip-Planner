@@ -3,6 +3,7 @@ from datetime import date
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.constraints import TripConstraints
+from app.models.preferences import TripPreferences
 
 
 class TripRequest(BaseModel):
@@ -11,6 +12,7 @@ class TripRequest(BaseModel):
     start_date: date
     end_date: date
     preferences: str | None = None
+    structured_preferences: TripPreferences = Field(default_factory=TripPreferences)
     constraints: TripConstraints = Field(default_factory=TripConstraints)
 
     @field_validator("origin", "destination")

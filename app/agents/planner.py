@@ -4,6 +4,7 @@ from langchain_openai import ChatOpenAI
 
 from app.config import get_settings
 from app.models.itinerary import RoadtripPlan
+from app.models.preferences import format_preferences_for_prompt
 from app.models.trip import TripRequest
 from app.prompts.planner import (
     PLANNER_HUMAN_TEMPLATE,
@@ -60,7 +61,10 @@ async def run_planner(request: TripRequest, feedback: list[str] | None = None) -
         destination=request.destination,
         start_date=request.start_date.isoformat(),
         end_date=request.end_date.isoformat(),
-        preferences=request.preferences or "scenic routes, local food",
+        preferences=format_preferences_for_prompt(
+            structured=request.structured_preferences,
+            free_text=request.preferences,
+        ),
         constraints=request.constraints.model_dump_json(),
         feedback_section=_format_feedback(feedback),
     )

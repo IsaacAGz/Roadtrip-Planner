@@ -113,12 +113,14 @@ Roadtrip_Planner/
 │   ├── test_geography.py         # GEO-001
 │   ├── test_poi.py               # POI-003
 │   ├── test_warnings.py          # Borderline hard-validator warnings
-│   └── test_wikipedia.py         # Wikipedia geosearch tool
+│   ├── test_wikipedia.py         # Wikipedia geosearch tool
+│   └── test_preferences.py       # TripPreferences schema and formatting
 ├── app/
 │   ├── main.py                   # FastAPI app + /health
 │   ├── config.py                 # pydantic-settings
 │   ├── models/
 │   │   ├── trip.py               # TripRequest, TripResponse
+│   │   ├── preferences.py        # TripPreferences (pace, budget, accessibility)
 │   │   ├── constraints.py        # TripConstraints
 │   │   ├── itinerary.py          # RoadtripPlan, DayPlan, Stop, OvernightStop
 │   │   └── validation.py         # RuleViolation, ValidationReport, ValidationResult
@@ -169,6 +171,12 @@ POST /trips/plan
   "start_date": "2026-07-15",
   "end_date": "2026-07-19",
   "preferences": "scenic coastal routes, breweries",
+  "structured_preferences": {
+    "pace": "relaxed",
+    "budget": "moderate",
+    "accessibility": false,
+    "interests": ["breweries", "coastal_views"]
+  },
   "constraints": {
     "max_driving_hours_per_day": 6.0,
     "allow_extended_stays": false,
@@ -206,10 +214,22 @@ If replanning is exhausted, the API returns the last draft with `approved: false
 | `destination` | string | City or landmark name |
 | `start_date` | date | Trip start |
 | `end_date` | date | Trip end (must be ≥ start_date) |
-| `preferences` | string \| null | Free-text user preferences |
+| `preferences` | string \| null | Free-text supplements (optional) |
+| `structured_preferences` | TripPreferences | Pace, budget, accessibility, interests (defaults applied if omitted) |
 | `constraints` | TripConstraints | Defaults applied if omitted |
 
 `days` is derived server-side: `(end_date - start_date).days + 1`
+
+### TripPreferences
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `pace` | `relaxed` \| `moderate` \| `packed` | `moderate` | Drives stop count and day pacing |
+| `budget` | `budget` \| `moderate` \| `luxury` | `moderate` | Guides stay type and activity choices |
+| `accessibility` | bool | `false` | Prefer accessible venues; avoid strenuous activities |
+| `interests` | list[string] | `[]` | Max 10; used for POI discovery (Wikipedia topics) |
+
+The legacy `preferences` string is still supported and passed to agents as additional notes alongside structured fields.
 
 ### TripConstraints (minimal MVP schema)
 
@@ -508,11 +528,12 @@ python -m uvicorn app.main:app --reload
 - [x] Multi-night stays and return stops (constraint-gated)
 - [x] Graceful HTTP error handling for Wikipedia and OpenWeather tools
 - [x] Wikipedia geosearch tool (`search_wikipedia_nearby`)
+- [x] Structured preferences (`pace`, `budget`, `accessibility`, `interests`)
 - [x] GitHub Actions CI (pytest on pull requests to `main`)
 - [x] Planner prompts with STRUCT-004 overnight-stay guidance
 - [x] Validator prompts that interpret hard-validation warnings
 - [x] README, `.env.example`
-- [x] Unit tests (47 tests: constraints, structure, routing, driving, geography, poi, warnings, wikipedia)
+- [x] Unit tests (56 tests: constraints, structure, routing, driving, geography, poi, warnings, wikipedia, preferences)
 
 ---
 
@@ -524,7 +545,6 @@ python -m uvicorn app.main:app --reload
 | Infrastructure | Redis caching, streaming responses, frontend UI |
 | Routing | Self-hosted OSRM, toll/highway/scenic profiles |
 | Agents | Dedicated Weather sub-agent |
-| Preferences | Structured pace (`relaxed` / `moderate` / `packed`), budget, accessibility |
 | Validation | `fail_on_weather_warnings`, precipitation/temperature thresholds |
 
 ---
@@ -554,4 +574,4 @@ python -m uvicorn app.main:app --reload
 
 ---
 
-*Last updated: July 14, 2026*
+*Last updated: July 15, 2026*

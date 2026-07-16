@@ -8,7 +8,7 @@ For full architecture and design details, see [PLAN.md](PLAN.md).
 
 - **Planner agent** — geocodes routes, finds POIs via Wikipedia text search and geosearch, fetches weather, and drafts an itinerary
 - **Hard validators** — Python + OSRM checks for driving hours, detours, backtracking, structure, geography, and POI rules
-- **Validator agent** — soft checks for pacing, preferences, and weather fit
+- **Validator agent** — soft checks for pacing, structured preferences, and weather fit
 - **Replan loop** — automatically retries with structured feedback when validation fails
 - **Structured JSON** — Pydantic models throughout (not free-form markdown)
 
@@ -54,15 +54,17 @@ LANGSMITH_PROJECT=Roadtrip_Planner
 python -m uvicorn app.main:app --reload
 ```
 
-- Health check: http://127.0.0.1:8000/health
-- Interactive API docs: http://127.0.0.1:8000/docs
+- Health check: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+- Interactive API docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
 ## API
 
-| Method | Path           | Description                          |
-|--------|----------------|--------------------------------------|
-| `GET`  | `/health`      | Liveness check                       |
-| `POST` | `/trips/plan`  | Generate itinerary + validation      |
+
+| Method | Path          | Description                     |
+| ------ | ------------- | ------------------------------- |
+| `GET`  | `/health`     | Liveness check                  |
+| `POST` | `/trips/plan` | Generate itinerary + validation |
+
 
 ### Example request
 
@@ -144,16 +146,19 @@ python -m pytest tests/ -v
 
 GitHub Actions runs the same test suite on every pull request to `main`.
 
-| Test file | Covers |
-|-----------|--------|
+
+| Test file                   | Covers                                                 |
+| --------------------------- | ------------------------------------------------------ |
 | `tests/test_constraints.py` | Cross-field constraint rules, `TripRequest` validation |
-| `tests/test_structure.py` | STRUCT-001, STRUCT-002, STRUCT-003, STRUCT-004 |
-| `tests/test_routing.py` | ROUTE-001, ROUTE-002 (mocked OSRM) |
-| `tests/test_driving.py` | DRIVE-001, DRIVE-002, SCHED-001 (mocked OSRM) |
-| `tests/test_geography.py` | GEO-001 country allowlist |
-| `tests/test_poi.py` | POI-003 excluded categories |
-| `tests/test_warnings.py` | Borderline DRIVE, SCHED, ROUTE warnings |
-| `tests/test_wikipedia.py` | Wikipedia geosearch tool (mocked HTTP) |
+| `tests/test_structure.py`   | STRUCT-001, STRUCT-002, STRUCT-003, STRUCT-004         |
+| `tests/test_routing.py`     | ROUTE-001, ROUTE-002 (mocked OSRM)                     |
+| `tests/test_driving.py`     | DRIVE-001, DRIVE-002, SCHED-001 (mocked OSRM)          |
+| `tests/test_geography.py`   | GEO-001 country allowlist                              |
+| `tests/test_poi.py`         | POI-003 excluded categories                            |
+| `tests/test_warnings.py`    | Borderline DRIVE, SCHED, ROUTE warnings                |
+| `tests/test_wikipedia.py`   | Wikipedia geosearch tool (mocked HTTP)                 |
+| `tests/test_preferences.py` | Structured preferences schema and formatting           |
+
 
 Run a single file:
 
@@ -163,31 +168,48 @@ python -m pytest tests/test_driving.py -v
 
 ### End-to-end tests
 
-E2E tests hit the live API. Start the server first (`uvicorn`), then send a request via curl or http://127.0.0.1:8000/docs.
+E2E tests hit the live API. Start the server first (`uvicorn`), then send a request via curl or [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
 Example (Git Bash) — 2-day trip to verify overnight-city rules:
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/trips/plan" \
   -H "Content-Type: application/json" \
-  -d '{"origin":"San Jose, CA","destination":"Monterey, CA","start_date":"2026-07-15","end_date":"2026-07-16","preferences":"relaxed pace, direct coastal route","constraints":{"max_driving_hours_per_day":6.0,"max_stops_per_day":2,"max_replan_attempts":2}}'
+  -d '{"origin":"San Diego, CA","destination":"Oregon, CA","start_date":"2026-07-15","end_date":"2026-07-18","preferences":"relaxed pace, direct coastal route","constraints":{"max_driving_hours_per_day":6.0,"max_stops_per_day":2,"max_replan_attempts":2}}'
 ```
 
 Check `validation.approved` and that consecutive days use **different** `overnight.city` values unless `allow_extended_stays` is true.
 
 ## Constraints
 
-| Field | Default | Notes |
-|-------|---------|-------|
-| `max_driving_hours_per_day` | 6.0 | Hard cap 8.0 |
-| `max_stops_per_day` | 4 | |
-| `max_detour_km_per_stop` | 30.0 | |
-| `max_backtracking_percent` | 15.0 | Clamped to 25 when `allow_return_stops=true` |
-| `allow_extended_stays` | false | Required for multi-night stays in one city |
-| `max_nights_per_stop` | 1 | Up to 7 when extended stays enabled |
-| `allow_return_stops` | false | Revisit same city on return leg |
-| `max_replan_attempts` | 2 | Planner retries on validation failure |
-| `allowed_countries` | `["US", "MX"]` | |
+### Structured preferences
+
+Optional `structured_preferences` object (defaults applied if omitted):
+
+| Field | Default | Values |
+|-------|---------|--------|
+| `pace` | `moderate` | `relaxed`, `moderate`, `packed` |
+| `budget` | `moderate` | `budget`, `moderate`, `luxury` |
+| `accessibility` | `false` | Prefer accessible venues when `true` |
+| `interests` | `[]` | Up to 10 topics (e.g. `breweries`, `hiking`) for POI discovery |
+
+The legacy `preferences` string still works as free-text additional notes.
+
+### Trip constraints
+
+
+| Field                       | Default        | Notes                                        |
+| --------------------------- | -------------- | -------------------------------------------- |
+| `max_driving_hours_per_day` | 6.0            | Hard cap 8.0                                 |
+| `max_stops_per_day`         | 4              |                                              |
+| `max_detour_km_per_stop`    | 30.0           |                                              |
+| `max_backtracking_percent`  | 15.0           | Clamped to 25 when `allow_return_stops=true` |
+| `allow_extended_stays`      | false          | Required for multi-night stays in one city   |
+| `max_nights_per_stop`       | 1              | Up to 7 when extended stays enabled          |
+| `allow_return_stops`        | false          | Revisit same city on return leg              |
+| `max_replan_attempts`       | 2              | Planner retries on validation failure        |
+| `allowed_countries`         | `["US", "MX"]` |                                              |
+
 
 Cross-field rules (return **422** if violated):
 
