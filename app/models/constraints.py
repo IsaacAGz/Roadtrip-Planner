@@ -27,6 +27,9 @@ class TripConstraints(BaseModel):
     max_nights_per_stop: int = Field(default=1, ge=1, le=7)
     allow_return_stops: bool = False
     max_replan_attempts: int = Field(default=2, ge=0, le=5)
+    fail_on_weather_warnings: bool = False
+    max_precip_chance: float = Field(default=0.5, ge=0.0, le=1.0)
+    min_temp_c: float = Field(default=10.0, ge=-30.0, le=40.0)
 
     @field_validator("allowed_countries")
     @classmethod

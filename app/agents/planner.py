@@ -12,6 +12,7 @@ from app.prompts.planner import (
     STRUCTURED_OUTPUT_SYSTEM,
 )
 from app.tools.geocode import geocode_location
+from app.tools.overpass import search_osm_pois_nearby
 from app.tools.routing import get_driving_route
 from app.tools.weather import get_weather_forecast
 from app.tools.wikipedia import search_wikipedia_attractions, search_wikipedia_nearby
@@ -19,6 +20,7 @@ from app.tools.wikipedia import search_wikipedia_attractions, search_wikipedia_n
 PLANNER_TOOLS = [
     geocode_location,
     get_driving_route,
+    search_osm_pois_nearby,
     search_wikipedia_attractions,
     search_wikipedia_nearby,
     get_weather_forecast,

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     osrm_base_url: str = "https://router.project-osrm.org"
     nominatim_base_url: str = "https://nominatim.openstreetmap.org"
     wikipedia_api_url: str = "https://en.wikipedia.org/w/api.php"
+    overpass_api_url: str = "https://overpass-api.de/api/interpreter"
     openweather_base_url: str = "https://api.openweathermap.org/data/2.5"
     openai_model: str = "gpt-4o-mini"
 

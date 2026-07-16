@@ -27,7 +27,7 @@ The Roadtrip Planner is an AI-powered itinerary generator that takes a trip requ
 | Orchestration | **LangChain** (`create_agent`) | Tool-calling agents with LangSmith tracing |
 | Maps / geocoding | **OpenStreetMap (Nominatim)** | Free geocoding with required User-Agent |
 | Routing | **OSRM** (public demo server for MVP) | Real driving distances and durations |
-| Attractions / POIs | **Wikipedia API** | Search and geosearch for points of interest |
+| Attractions / POIs | **Wikipedia API** + **Overpass API (OSM)** | Wikipedia for notable places; OSM for factual POIs near coordinates |
 | Weather | **OpenWeatherMap** | Forecast data for overnight cities |
 | HTTP client | **httpx** | Async calls to external APIs |
 | Validation | **Python hard validators + LLM Validator agent** | Reliable math/routing checks + preference fit |
@@ -48,6 +48,7 @@ flowchart TD
     Tools --> Nominatim[Nominatim OSM]
     Tools --> OSRM[OSRM]
     Tools --> Wiki[Wikipedia API]
+    Tools --> Overpass[Overpass API]
     Tools --> OWM[OpenWeatherMap]
     Planner --> Draft[Structured RoadtripPlan]
     Draft --> HardVal[Hard validators Python]
@@ -64,7 +65,7 @@ Two agents with distinct responsibilities:
 
 | Agent | Role | Tools | Temperature |
 |-------|------|-------|-------------|
-| **Planner / Router** | Geocode, segment route, find POIs, fetch weather, draft itinerary | Nominatim, OSRM, Wikipedia, OpenWeather | ~0.4 |
+| **Planner / Router** | Geocode, segment route, find POIs, fetch weather, draft itinerary | Nominatim, OSRM, Overpass, Wikipedia, OpenWeather | ~0.4 |
 | **Validator** | Soft checks: pacing, preferences, weather vs activities | OSRM (re-verification only) | ~0.1 |
 
 **Design decision:** A **Planner + Validator** split is preferred over a single agent because:
@@ -114,7 +115,9 @@ Roadtrip_Planner/
 │   ├── test_poi.py               # POI-003
 │   ├── test_warnings.py          # Borderline hard-validator warnings
 │   ├── test_wikipedia.py         # Wikipedia geosearch tool
-│   └── test_preferences.py       # TripPreferences schema and formatting
+│   ├── test_overpass.py          # Overpass OSM POI tool
+│   ├── test_preferences.py       # TripPreferences schema and formatting
+│   └── test_weather_validator.py # WEATHER-001 outdoor forecast checks
 ├── app/
 │   ├── main.py                   # FastAPI app + /health
 │   ├── config.py                 # pydantic-settings
@@ -126,11 +129,13 @@ Roadtrip_Planner/
 │   │   └── validation.py         # RuleViolation, ValidationReport, ValidationResult
 │   ├── services/
 │   │   ├── nominatim.py          # Geocoding client (rate-limited)
-│   │   └── osrm.py               # Routing client (distance, duration)
+│   │   ├── osrm.py               # Routing client (distance, duration)
+│   │   └── openweather.py        # Forecast client for validators
 │   ├── tools/
 │   │   ├── geocode.py
 │   │   ├── routing.py
 │   │   ├── wikipedia.py
+│   │   ├── overpass.py
 │   │   └── weather.py
 │   ├── validators/
 │   │   ├── hard.py               # Orchestrates hard checks + warnings
@@ -139,7 +144,8 @@ Roadtrip_Planner/
 │   │   ├── routing.py            # ROUTE-001, ROUTE-002
 │   │   ├── structure.py          # STRUCT-001..004
 │   │   ├── geography.py          # GEO-001
-│   │   └── poi.py                # POI-003
+│   │   ├── poi.py                # POI-003
+│   │   └── weather.py            # WEATHER-001
 │   ├── agents/
 │   │   ├── planner.py            # Planner agent + structured output
 │   │   └── validator.py          # Soft validator agent
@@ -227,7 +233,7 @@ If replanning is exhausted, the API returns the last draft with `approved: false
 | `pace` | `relaxed` \| `moderate` \| `packed` | `moderate` | Drives stop count and day pacing |
 | `budget` | `budget` \| `moderate` \| `luxury` | `moderate` | Guides stay type and activity choices |
 | `accessibility` | bool | `false` | Prefer accessible venues; avoid strenuous activities |
-| `interests` | list[string] | `[]` | Max 10; used for POI discovery (Wikipedia topics) |
+| `interests` | list[string] | `[]` | Max 10; used for OSM and Wikipedia POI discovery |
 
 The legacy `preferences` string is still supported and passed to agents as additional notes alongside structured fields.
 
@@ -246,6 +252,9 @@ The legacy `preferences` string is still supported and passed to agents as addit
 | `max_nights_per_stop` | 1 | Up to 7 when extended stays enabled |
 | `allow_return_stops` | false | Revisit same city on return leg |
 | `max_replan_attempts` | 2 | Drives FastAPI retry loop |
+| `fail_on_weather_warnings` | false | Enable WEATHER-001 hard checks (requires `OPENWEATHER_API_KEY`) |
+| `max_precip_chance` | 0.5 | Max daily precipitation probability (0–1) for outdoor days |
+| `min_temp_c` | 10.0 | Minimum acceptable daily low temperature (°C) for outdoor days |
 
 **Cross-field validation (422 before agents run):**
 
@@ -318,6 +327,14 @@ Each violation includes: `rule_id`, `severity` (`error` \| `warning` \| `info`),
 - **Returns:** Text search — top 3–5 article titles + snippets; geosearch — titles + lat/lon + distance (meters)
 - **Requires:** `User-Agent` header (uses `NOMINATIM_USER_AGENT`); HTTP errors return a message instead of crashing the planner
 
+### Overpass API (OpenStreetMap POIs)
+
+- **Endpoint:** `POST /api/interpreter` with Overpass QL query (default: `https://overpass-api.de/api/interpreter`)
+- **Query:** `around` filter on `tourism=*` and `amenity=*` tags near lat/lon (implemented via `search_osm_pois_nearby`)
+- **Returns:** Up to 5 POIs with name, lat/lon, category, and distance from search center
+- **Interest mapping:** Structured interests (e.g. `breweries`, `museums`) map to OSM tag filters
+- **Requires:** `User-Agent` header; respect public server rate limits (dev/MVP only; self-host for production)
+
 ### OpenWeatherMap
 
 - **Endpoint:** `GET /data/2.5/forecast?q={city}&units=metric`
@@ -334,6 +351,7 @@ Each violation includes: `rule_id`, `severity` (`error` \| `warning` \| `info`),
 |------|---------|
 | `geocode_location` | City/landmark → coordinates + country |
 | `get_driving_route` | Segment distance (km) + duration (hours) |
+| `search_osm_pois_nearby` | POI discovery near coordinates (Overpass / OSM) |
 | `search_wikipedia_attractions` | POI discovery by place name (text search) |
 | `search_wikipedia_nearby` | POI discovery near coordinates (geosearch) |
 | `get_weather_forecast` | Forecast for overnight cities |
@@ -370,7 +388,8 @@ Validation is split into four layers:
 4. DRIVE-001 — daily driving cap (OSRM-verified)
 5. ROUTE-001 — per-stop detour
 6. ROUTE-002 — backtracking percent
-7. **Warnings** — borderline cases collected via `collect_warnings()` (do not block approval alone)
+7. WEATHER-001 — outdoor weather conflicts (when `fail_on_weather_warnings=true`)
+8. **Warnings** — borderline cases collected via `collect_warnings()` (do not block approval alone)
 
 ### Hard validation warnings
 
@@ -451,6 +470,19 @@ When `allow_return_stops=true`:
 - Merged with any client-provided `excluded_poi_categories`
 - Fail if any stop `category` matches
 
+### WEATHER-001 — Outdoor weather conflicts
+
+Enabled when `fail_on_weather_warnings=true` and `OPENWEATHER_API_KEY` is configured.
+
+A day is checked when it has an outdoor-category stop **or** outdoor `interests` with at least one stop.
+
+For each checked day, fetch OpenWeather forecast for the overnight city on that day's date. Fail if:
+
+- `max_precip_chance` for the day exceeds `constraints.max_precip_chance`
+- `min_temp_c` for the day is below `constraints.min_temp_c`
+
+Outdoor interests include beaches, hiking, camping, parks, scenic viewpoints, etc. Outdoor stop categories include beach, viewpoint, park, camp_site, trail, etc.
+
 ---
 
 ## 10. Validator Agent (soft rules)
@@ -496,6 +528,7 @@ See `.env.example` for a full template.
 | `osrm_base_url` | `https://router.project-osrm.org` |
 | `nominatim_base_url` | `https://nominatim.openstreetmap.org` |
 | `wikipedia_api_url` | `https://en.wikipedia.org/w/api.php` |
+| `overpass_api_url` | `https://overpass-api.de/api/interpreter` |
 | `openweather_base_url` | `https://api.openweathermap.org/data/2.5` |
 
 ---
@@ -528,12 +561,14 @@ python -m uvicorn app.main:app --reload
 - [x] Multi-night stays and return stops (constraint-gated)
 - [x] Graceful HTTP error handling for Wikipedia and OpenWeather tools
 - [x] Wikipedia geosearch tool (`search_wikipedia_nearby`)
+- [x] Overpass OSM POI tool (`search_osm_pois_nearby`)
 - [x] Structured preferences (`pace`, `budget`, `accessibility`, `interests`)
+- [x] Weather validation thresholds (`fail_on_weather_warnings`, WEATHER-001)
 - [x] GitHub Actions CI (pytest on pull requests to `main`)
 - [x] Planner prompts with STRUCT-004 overnight-stay guidance
 - [x] Validator prompts that interpret hard-validation warnings
 - [x] README, `.env.example`
-- [x] Unit tests (56 tests: constraints, structure, routing, driving, geography, poi, warnings, wikipedia, preferences)
+- [x] Unit tests (71 tests: constraints, structure, routing, driving, geography, poi, warnings, wikipedia, overpass, preferences, weather)
 
 ---
 
@@ -545,7 +580,6 @@ python -m uvicorn app.main:app --reload
 | Infrastructure | Redis caching, streaming responses, frontend UI |
 | Routing | Self-hosted OSRM, toll/highway/scenic profiles |
 | Agents | Dedicated Weather sub-agent |
-| Validation | `fail_on_weather_warnings`, precipitation/temperature thresholds |
 
 ---
 
@@ -553,6 +587,7 @@ python -m uvicorn app.main:app --reload
 
 - **Nominatim:** Respect 1 req/sec; use in-memory geocode cache per request
 - **Wikipedia:** Send a descriptive `User-Agent`; tool returns error messages on HTTP failure instead of crashing
+- **Overpass:** Public demo server is rate-limited; use for dev/MVP; self-host for production scale
 - **OpenWeatherMap:** Optional API key; planner continues with generic packing tips if unset
 - **OSRM demo server:** Not for production traffic; self-host for scale
 - **Partial failure:** Return last draft + violations when replan loop exhausts attempts

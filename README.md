@@ -6,9 +6,9 @@ For full architecture and design details, see [PLAN.md](PLAN.md).
 
 ## Features
 
-- **Planner agent** — geocodes routes, finds POIs via Wikipedia text search and geosearch, fetches weather, and drafts an itinerary
+- **Planner agent** — geocodes routes, finds POIs via OpenStreetMap (Overpass) and Wikipedia, fetches weather, and drafts an itinerary
 - **Hard validators** — Python + OSRM checks for driving hours, detours, backtracking, structure, geography, and POI rules
-- **Validator agent** — soft checks for pacing, structured preferences, and weather fit
+- **Validator agent** — soft checks for pacing, preferences, and weather fit
 - **Replan loop** — automatically retries with structured feedback when validation fails
 - **Structured JSON** — Pydantic models throughout (not free-form markdown)
 
@@ -22,7 +22,8 @@ External services used at runtime (no API key required):
 
 - [Nominatim](https://nominatim.org/) (OpenStreetMap geocoding)
 - [OSRM](https://project-osrm.org/) public demo server (routing)
-- [Wikipedia API](https://www.mediawiki.org/wiki/API:Main_page) (POI discovery)
+- [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) (OpenStreetMap POI discovery)
+- [Wikipedia API](https://www.mediawiki.org/wiki/API:Main_page) (notable landmarks and descriptions)
 
 ## Setup
 
@@ -157,7 +158,8 @@ GitHub Actions runs the same test suite on every pull request to `main`.
 | `tests/test_poi.py`         | POI-003 excluded categories                            |
 | `tests/test_warnings.py`    | Borderline DRIVE, SCHED, ROUTE warnings                |
 | `tests/test_wikipedia.py`   | Wikipedia geosearch tool (mocked HTTP)                 |
-| `tests/test_preferences.py` | Structured preferences schema and formatting           |
+| `tests/test_overpass.py`    | Overpass OSM POI tool (mocked HTTP)                    |
+| `tests/test_weather_validator.py` | WEATHER-001 outdoor forecast checks (mocked)     |
 
 
 Run a single file:
@@ -175,27 +177,12 @@ Example (Git Bash) — 2-day trip to verify overnight-city rules:
 ```bash
 curl -X POST "http://127.0.0.1:8000/trips/plan" \
   -H "Content-Type: application/json" \
-  -d '{"origin":"San Diego, CA","destination":"Oregon, CA","start_date":"2026-07-15","end_date":"2026-07-18","preferences":"relaxed pace, direct coastal route","constraints":{"max_driving_hours_per_day":6.0,"max_stops_per_day":2,"max_replan_attempts":2}}'
+  -d '{"origin":"San Diego, CA","destination":"Portland, OR","start_date":"2026-07-15","end_date":"2026-07-18","preferences":"relaxed pace, direct coastal route","constraints":{"max_driving_hours_per_day":6.0,"max_stops_per_day":2,"max_replan_attempts":2}}'
 ```
 
 Check `validation.approved` and that consecutive days use **different** `overnight.city` values unless `allow_extended_stays` is true.
 
 ## Constraints
-
-### Structured preferences
-
-Optional `structured_preferences` object (defaults applied if omitted):
-
-| Field | Default | Values |
-|-------|---------|--------|
-| `pace` | `moderate` | `relaxed`, `moderate`, `packed` |
-| `budget` | `moderate` | `budget`, `moderate`, `luxury` |
-| `accessibility` | `false` | Prefer accessible venues when `true` |
-| `interests` | `[]` | Up to 10 topics (e.g. `breweries`, `hiking`) for POI discovery |
-
-The legacy `preferences` string still works as free-text additional notes.
-
-### Trip constraints
 
 
 | Field                       | Default        | Notes                                        |
@@ -209,6 +196,9 @@ The legacy `preferences` string still works as free-text additional notes.
 | `allow_return_stops`        | false          | Revisit same city on return leg              |
 | `max_replan_attempts`       | 2              | Planner retries on validation failure        |
 | `allowed_countries`         | `["US", "MX"]` |                                              |
+| `fail_on_weather_warnings`  | false          | Hard-check outdoor days against forecast     |
+| `max_precip_chance`         | 0.5            | Max daily rain probability (0–1)             |
+| `min_temp_c`                | 10.0           | Min daily low temp (°C) for outdoor days     |
 
 
 Cross-field rules (return **422** if violated):
@@ -226,15 +216,16 @@ app/
 ├── models/              # Pydantic request/response models
 ├── routers/trips.py     # POST /trips/plan retry loop
 ├── agents/              # Planner and Validator agents
-├── tools/               # LangChain tools (geocode, routing, wiki, weather)
-├── services/            # Nominatim and OSRM clients
-├── validators/          # Hard validation rules
+├── tools/               # LangChain tools (geocode, routing, overpass, wiki, weather)
+├── services/            # Nominatim, OSRM, and OpenWeather clients
+├── validators/          # Hard validation rules (incl. WEATHER-001)
 └── prompts/             # Agent system prompts
 ```
 
 ## Operational notes
 
 - **Nominatim** — rate-limited to 1 request/second; use a descriptive `NOMINATIM_USER_AGENT`
+- **Overpass API** — public demo server is rate-limited; suitable for development only
 - **OSRM demo server** — suitable for development only; self-host for production
 - **Costs** — each `/trips/plan` call uses OpenAI tokens; replans multiply usage
 
