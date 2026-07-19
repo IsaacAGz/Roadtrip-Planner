@@ -11,7 +11,8 @@ The Roadtrip Planner is an AI-powered itinerary generator that takes a trip requ
 **Core goals:**
 
 - Produce **realistic, OSRM-verified** driving itineraries
-- Discover **points of interest** via Wikipedia
+- Reject **mathematically impossible trips** before LLM calls (FEAS-001/002/003 pre-check)
+- Discover **points of interest** via Wikipedia and OpenStreetMap (Overpass)
 - Include **weather context** for overnight cities
 - Enforce **hard constraints** in Python and **soft preferences** via a Validator agent
 - Return **structured JSON** (Pydantic models), not free-form markdown
@@ -42,7 +43,14 @@ The Roadtrip Planner is an AI-powered itinerary generator that takes a trip requ
 flowchart TD
     Client[HTTP Client] --> API[FastAPI POST /trips/plan]
     API --> PreCheck[Request validation and constraint clamping]
-    PreCheck --> Loop[Retry loop max_replan_attempts]
+    PreCheck --> FeasCheck[Trip feasibility pre-check FEAS-001/002/003]
+    FeasCheck -->|422| Reject422[422 before LLM]
+    FeasCheck --> JobCreate[Create job 202 Accepted]
+    JobCreate --> Background[Background planning task]
+    Background --> Loop[Retry loop max_replan_attempts]
+    Client --> Poll[GET /trips/jobs/job_id]
+    Poll --> JobStore[In-memory job store]
+    Background --> JobStore
     Loop --> Planner[Planner Agent]
     Planner --> Tools[LangChain Tools]
     Tools --> Nominatim[Nominatim OSM]
@@ -56,7 +64,24 @@ flowchart TD
     Feedback --> Loop
     HardVal -->|pass| SoftVal[Validator Agent LLM]
     SoftVal -->|reject| Feedback
-    SoftVal -->|approve| Response[TripResponse]
+    SoftVal -->|approve| Response[TripResponse in job.result]
+```
+
+```mermaid
+sequenceDiagram
+    Client->>API: POST /trips/plan
+    API->>API: Pydantic + FEAS check
+    alt infeasible
+        API-->>Client: 422
+    else feasible
+        API-->>Client: 202 job_id
+        API->>Worker: run_planning_job (background)
+        loop poll
+            Client->>API: GET /trips/jobs/{id}
+            API-->>Client: status + progress
+        end
+        Worker-->>API: job completed + TripResponse
+    end
 ```
 
 ### Agent model
@@ -78,19 +103,28 @@ Two agents with distinct responsibilities:
 
 ### Orchestration
 
-**MVP choice:** FastAPI retry loop (not LangGraph).
+**MVP choice:** FastAPI background task + in-memory job store (not LangGraph).
 
 ```
-for attempt in range(max_replan_attempts + 1):
+POST /trips/plan:
+  await check_trip_feasibility(request)  # FEAS-001/002/003 → 422 if impossible
+  job = job_store.create_job(request)
+  background_tasks.add_task(run_planning_job, job.job_id, request)
+  return 202 { job_id, status_url }
+
+GET /trips/jobs/{job_id}:
+  return job status, progress events, result (when completed)
+
+run_planning_job(job_id, request):
+  for attempt in range(max_replan_attempts + 1):
+    emit progress: planning, hard_validation, soft_validation
     plan = planner(request, feedback)
     hard_report = run_hard_validators(plan, request)
-    if hard_report.hard_failures:
-        feedback = hard_report messages → continue
+    if hard_report.hard_failures: feedback → continue
     soft_result = validator(plan, request)
-    if soft_result.approved:
-        return success
+    if soft_result.approved: complete job with TripResponse
     feedback = soft_result.replan_instructions → continue
-return best-effort plan + approved=false
+  complete job with best-effort plan + approved=false
 ```
 
 ---
@@ -117,12 +151,21 @@ Roadtrip_Planner/
 │   ├── test_wikipedia.py         # Wikipedia geosearch tool
 │   ├── test_overpass.py          # Overpass OSM POI tool
 │   ├── test_preferences.py       # TripPreferences schema and formatting
-│   └── test_weather_validator.py # WEATHER-001 outdoor forecast checks
+│   ├── test_weather_validator.py # WEATHER-001 outdoor forecast checks
+│   └── test_feasibility.py       # FEAS-001/002/003 pre-check + router 422
+│   ├── test_api_integration.py   # HTTP API tests for async planning jobs
+│   ├── test_job_store.py         # In-memory job store
+│   └── test_planning_job.py      # Background planning service
+├── frontend/
+│   ├── PLAN.md                   # UI architecture and phases
+│   ├── src/                      # React + TypeScript UI (Phase A)
+│   └── vite.config.ts            # Dev proxy /api → FastAPI
 ├── app/
 │   ├── main.py                   # FastAPI app + /health
 │   ├── config.py                 # pydantic-settings
 │   ├── models/
 │   │   ├── trip.py               # TripRequest, TripResponse
+│   │   ├── job.py                # PlanningJobCreatedResponse, PlanningJobResponse
 │   │   ├── preferences.py        # TripPreferences (pace, budget, accessibility)
 │   │   ├── constraints.py        # TripConstraints
 │   │   ├── itinerary.py          # RoadtripPlan, DayPlan, Stop, OvernightStop
@@ -130,7 +173,9 @@ Roadtrip_Planner/
 │   ├── services/
 │   │   ├── nominatim.py          # Geocoding client (rate-limited)
 │   │   ├── osrm.py               # Routing client (distance, duration)
-│   │   └── openweather.py        # Forecast client for validators
+│   │   ├── openweather.py        # Forecast client for validators
+│   │   ├── job_store.py          # In-memory async planning job store
+│   │   └── planning_job.py       # Background replan loop + progress events
 │   ├── tools/
 │   │   ├── geocode.py
 │   │   ├── routing.py
@@ -145,7 +190,8 @@ Roadtrip_Planner/
 │   │   ├── structure.py          # STRUCT-001..004
 │   │   ├── geography.py          # GEO-001
 │   │   ├── poi.py                # POI-003
-│   │   └── weather.py            # WEATHER-001
+│   │   ├── weather.py            # WEATHER-001
+│   │   └── feasibility.py        # FEAS-001/002/003 pre-agent check
 │   ├── agents/
 │   │   ├── planner.py            # Planner agent + structured output
 │   │   └── validator.py          # Soft validator agent
@@ -153,7 +199,7 @@ Roadtrip_Planner/
 │   │   ├── planner.py
 │   │   └── validator.py
 │   └── routers/
-│       └── trips.py              # POST /trips/plan retry loop
+│       └── trips.py              # POST /trips/plan (202) + GET /trips/jobs/{id}
 ```
 
 ---
@@ -163,7 +209,8 @@ Roadtrip_Planner/
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/health` | Liveness check |
-| `POST` | `/trips/plan` | Generate full itinerary + validation report |
+| `POST` | `/trips/plan` | Start async planning job (**202** + `job_id`) |
+| `GET` | `/trips/jobs/{job_id}` | Poll job status, progress, and result |
 
 OpenAPI interactive docs: `http://127.0.0.1:8000/docs`
 
@@ -191,22 +238,79 @@ POST /trips/plan
 }
 ```
 
-### Example response shape
+### Start planning (202 Accepted)
 
 ```json
 {
-  "plan": { "title": "...", "total_days": 5, "days": [...], "tips": [...] },
-  "validation": {
-    "approved": true,
-    "hard_failures": [],
-    "warnings": [],
-    "replan_attempts": 0
-  },
-  "replan_attempts": 0
+  "job_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "status": "queued",
+  "status_url": "/trips/jobs/3fa85f64-5717-4562-b3fc-2c963f66afa6"
 }
 ```
 
-If replanning is exhausted, the API returns the last draft with `approved: false` and violation details (not a 500 error).
+Poll `GET /trips/jobs/{job_id}` until `status` is `completed` or `failed`.
+
+### Completed job response shape
+
+```json
+{
+  "job_id": "...",
+  "status": "completed",
+  "progress": [
+    { "stage": "queued", "message": "Planning job queued", "attempt": null },
+    { "stage": "planning", "message": "Running planner", "attempt": 0 },
+    { "stage": "hard_validation", "message": "Running hard validators", "attempt": 0 },
+    { "stage": "soft_validation", "message": "Running validator agent", "attempt": 0 },
+    { "stage": "completed", "message": "Planning completed", "attempt": null }
+  ],
+  "result": {
+    "plan": { "title": "...", "total_days": 5, "days": [...], "tips": [...] },
+    "validation": {
+      "approved": true,
+      "hard_failures": [],
+      "warnings": [],
+      "replan_attempts": 0
+    },
+    "replan_attempts": 0
+  },
+  "error": null
+}
+```
+
+If replanning is exhausted, the job completes with `result.validation.approved: false` and violation details (not a 500 error).
+
+### Async planning job model
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `job_id` | string (UUID) | Returned by `POST /trips/plan` |
+| `status` | `queued` \| `running` \| `completed` \| `failed` | Current job state |
+| `progress` | list[ProgressEvent] | Coarse stage updates (`planning`, `hard_validation`, `soft_validation`, …) |
+| `result` | TripResponse \| null | Populated when `status=completed` |
+| `error` | string \| null | Populated when `status=failed` |
+
+**Storage:** In-memory `JobStore` (MVP). Jobs are lost on server restart; Redis planned for production (see Future Phases).
+
+### Feasibility pre-check (422 before LLM)
+
+After Pydantic validation, `POST /trips/plan` geocodes origin and destination (Nominatim), verifies endpoint countries against `allowed_countries`, and queries OSRM for one-way driving time. If the trip is mathematically impossible, the API returns **422** without calling the Planner.
+
+Adds ~2 seconds latency (two Nominatim calls at 1 req/sec) before planning starts.
+
+Example — San Diego → Portland with only 2 days at 6 h/day (OSRM one-way ~17 h):
+
+```json
+{
+  "detail": {
+    "rule_id": "FEAS-001",
+    "message": "Trip requires at least 3 driving days at 6.0h/day (OSRM one-way 17.0h) but request allows 2 days",
+    "actual": 2,
+    "limit": 3
+  }
+}
+```
+
+This is a **lower bound** — detours and stops only increase required time, so false "feasible" is possible but false "infeasible" is not.
 
 ---
 
@@ -264,6 +368,14 @@ The legacy `preferences` string is still supported and passed to agents as addit
 | `max_nights_per_stop` > trip length (days) | Reject |
 | Empty `origin` or `destination` | Reject |
 | `allow_return_stops=true` with `max_backtracking_percent < 25` | Clamp to 25% |
+
+**Feasibility pre-check (422 before agents run):**
+
+| Rule | Behavior |
+|------|----------|
+| FEAS-001 | `days < ceil(OSRM_hours / max_driving_hours_per_day)` — doubles OSRM hours when `allow_return_stops=true` |
+| FEAS-002 | Origin or destination cannot be geocoded, or endpoint country not in `allowed_countries` |
+| FEAS-003 | OSRM cannot find a driving route between geocoded endpoints |
 
 ### RoadtripPlan
 
@@ -371,14 +483,45 @@ Each violation includes: `rule_id`, `severity` (`error` \| `warning` \| `info`),
 
 ## 9. Validation Rules
 
-Validation is split into four layers:
+Validation is split into five layers:
 
 | Layer | Enforced by | Examples |
 |-------|-------------|----------|
+| **Feasibility pre-check** | Python + Nominatim + OSRM (before agents) | FEAS-001 min days, FEAS-002 geocode/country, FEAS-003 routing |
 | **Hard rules** | Python + OSRM | Max driving hours, detour limits, schema |
 | **Hard warnings** | Python + OSRM (`warnings.py`) | Borderline driving, detours, backtracking, stop count |
 | **Configurable rules** | API request (with caps) | Max hours/day, stops/day, cross-field 422 checks |
 | **Soft rules** | Validator agent | Pacing, preference fit, weather vs activities |
+
+### Feasibility pre-check (FEAS-001 / FEAS-002 / FEAS-003)
+
+Runs in `check_trip_feasibility()` before the replan loop. Does not replace post-plan DRIVE-001 checks on each day's legs.
+
+**FEAS-001 — Minimum driving days**
+
+```
+effective_hours = OSRM(origin, destination).duration_hours
+if allow_return_stops: effective_hours *= 2
+min_days_required = max(1, ceil(effective_hours / max_driving_hours_per_day))
+fail if request.days < min_days_required
+```
+
+**FEAS-002 — Endpoint geography**
+
+Geocode origin and destination via Nominatim. Fail if geocode returns no result, or if `country_code` is not in `allowed_countries`.
+
+**FEAS-003 — Routing failure**
+
+Fail if OSRM cannot compute a driving route between geocoded endpoints.
+
+| Case | Rule | HTTP |
+|------|------|------|
+| Nominatim returns no result | FEAS-002 | 422 |
+| Endpoint country not in `allowed_countries` | FEAS-002 | 422 |
+| OSRM no route | FEAS-003 | 422 |
+| Trip days below minimum driving days | FEAS-001 | 422 |
+
+**Design notes:** Always-on (no opt-in flag). Conservative for return trips (2× one-way OSRM hours when `allow_return_stops=true`). Does not account for detours — intentional lower bound; false "feasible" is possible, false "infeasible" is not. Does not replace post-plan GEO-001 or DRIVE-001 checks.
 
 ### Hard validation pipeline (order)
 
@@ -556,6 +699,11 @@ python -m uvicorn app.main:app --reload
 - [x] Hard-validator warnings (borderline DRIVE/SCHED/ROUTE cases)
 - [x] `TripConstraints` with API-configurable rules (8h driving cap)
 - [x] Cross-field constraint validation (422 before agents run)
+- [x] Async planning jobs (POST 202 + GET /trips/jobs/{id}, in-memory store, coarse progress)
+- [x] Frontend Phase A (React trip form, job polling, itinerary + validation display)
+- [x] Frontend Phase B (structured preferences, advanced constraints, progress timeline, copy JSON)
+- [x] Frontend Phase C (Leaflet OSM map with origin, overnights, destination)
+- [x] Trip feasibility pre-check (FEAS-001/002/003, 422 before LLM)
 - [x] FastAPI retry loop for replanning
 - [x] Default countries: US, MX; excluded POIs: dangerous/illegal
 - [x] Multi-night stays and return stops (constraint-gated)
@@ -568,7 +716,7 @@ python -m uvicorn app.main:app --reload
 - [x] Planner prompts with STRUCT-004 overnight-stay guidance
 - [x] Validator prompts that interpret hard-validation warnings
 - [x] README, `.env.example`
-- [x] Unit tests (71 tests: constraints, structure, routing, driving, geography, poi, warnings, wikipedia, overpass, preferences, weather)
+- [x] Unit tests (100 tests: constraints, structure, routing, driving, geography, poi, warnings, wikipedia, overpass, preferences, weather, feasibility, api integration, job store, planning job)
 
 ---
 
@@ -577,7 +725,7 @@ python -m uvicorn app.main:app --reload
 | Phase | Feature |
 |-------|---------|
 | Orchestration | LangGraph state machine (`plan → validate → replan` nodes) |
-| Infrastructure | Redis caching, streaming responses, frontend UI |
+| Infrastructure | Redis-backed job store (replace in-memory MVP store); frontend Phases B–D are implemented |
 | Routing | Self-hosted OSRM, toll/highway/scenic profiles |
 | Agents | Dedicated Weather sub-agent |
 
@@ -591,8 +739,10 @@ python -m uvicorn app.main:app --reload
 - **OpenWeatherMap:** Optional API key; planner continues with generic packing tips if unset
 - **OSRM demo server:** Not for production traffic; self-host for scale
 - **Partial failure:** Return last draft + violations when replan loop exhausts attempts
-- **422 errors:** Invalid cross-field constraints rejected before agents run (see TripConstraints cross-field table)
-- **Unit tests:** `python -m pytest tests/ -v` (no server or API keys required)
+- **422 errors:** Invalid cross-field constraints and infeasible trips rejected before agents run (see TripConstraints cross-field table and FEAS-001/002/003)
+- **Feasibility latency:** ~2 seconds added before planning (two Nominatim calls at 1 req/sec + one OSRM call)
+- **Async jobs:** In-memory store only; use Redis before multi-worker production deploy
+- **Unit tests:** `python -m pytest tests/ -v` (100 tests; no server or API keys required)
 - **LangSmith:** Existing `.env` tracing vars provide agent observability without extra code
 
 ---
@@ -609,4 +759,4 @@ python -m uvicorn app.main:app --reload
 
 ---
 
-*Last updated: July 15, 2026*
+*Last updated: July 18, 2026*

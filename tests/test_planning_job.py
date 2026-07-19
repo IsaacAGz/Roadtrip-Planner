@@ -1,0 +1,111 @@
+from datetime import date
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from app.models.trip import TripRequest
+from app.models.validation import RuleViolation, ValidationReport, ValidationResult
+from app.services.job_store import JobStore
+from app.services.planning_job import run_planning_job
+from tests.helpers import sample_plan
+
+
+def _request(**kwargs) -> TripRequest:
+    defaults = {
+        "origin": "San Diego, CA",
+        "destination": "Portland, OR",
+        "start_date": date(2026, 7, 15),
+        "end_date": date(2026, 7, 19),
+    }
+    defaults.update(kwargs)
+    return TripRequest(**defaults)
+
+
+@pytest.fixture
+def store():
+    job_store = JobStore()
+    with patch("app.services.planning_job.job_store", job_store):
+        yield job_store
+
+
+@pytest.mark.asyncio
+async def test_run_planning_job_completes_successfully(store):
+    plan = sample_plan()
+    hard_report = ValidationReport(approved=True, hard_failures=[], warnings=[])
+    soft_result = ValidationResult(approved=True)
+    job = store.create_job(_request())
+
+    with (
+        patch("app.services.planning_job.run_planner", AsyncMock(return_value=plan)),
+        patch("app.services.planning_job.run_hard_validators", AsyncMock(return_value=hard_report)),
+        patch("app.services.planning_job.run_validator", AsyncMock(return_value=soft_result)),
+    ):
+        await run_planning_job(job.job_id, job.request)
+
+    updated = store.get_job(job.job_id)
+    assert updated is not None
+    assert updated.status.value == "completed"
+    assert updated.result is not None
+    assert updated.result.validation.approved is True
+
+
+@pytest.mark.asyncio
+async def test_run_planning_job_marks_failed_on_exception(store):
+    job = store.create_job(_request())
+
+    with patch("app.services.planning_job.run_planner", AsyncMock(side_effect=RuntimeError("boom"))):
+        await run_planning_job(job.job_id, job.request)
+
+    updated = store.get_job(job.job_id)
+    assert updated is not None
+    assert updated.status.value == "failed"
+    assert updated.error == "boom"
+
+
+@pytest.mark.asyncio
+async def test_run_planning_job_records_progress_events(store):
+    plan = sample_plan()
+    hard_report = ValidationReport(approved=True, hard_failures=[], warnings=[])
+    soft_result = ValidationResult(approved=True)
+    job = store.create_job(_request())
+
+    with (
+        patch("app.services.planning_job.run_planner", AsyncMock(return_value=plan)),
+        patch("app.services.planning_job.run_hard_validators", AsyncMock(return_value=hard_report)),
+        patch("app.services.planning_job.run_validator", AsyncMock(return_value=soft_result)),
+    ):
+        await run_planning_job(job.job_id, job.request)
+
+    updated = store.get_job(job.job_id)
+    assert updated is not None
+    stages = [event.stage.value for event in updated.progress]
+    assert "planning" in stages
+    assert "hard_validation" in stages
+    assert "soft_validation" in stages
+
+
+@pytest.mark.asyncio
+async def test_run_planning_job_retries_on_hard_failures(store):
+    plan = sample_plan()
+    hard_failure = RuleViolation(
+        rule_id="DRIVE-001",
+        severity="error",
+        day=1,
+        message="Too much driving",
+    )
+    hard_report = ValidationReport(approved=False, hard_failures=[hard_failure], warnings=[])
+    planner = AsyncMock(return_value=plan)
+    job = store.create_job(_request(constraints={"max_replan_attempts": 1}))
+
+    with (
+        patch("app.services.planning_job.run_planner", planner),
+        patch("app.services.planning_job.run_hard_validators", AsyncMock(return_value=hard_report)),
+        patch("app.services.planning_job.run_validator", AsyncMock()),
+    ):
+        await run_planning_job(job.job_id, job.request)
+
+    updated = store.get_job(job.job_id)
+    assert updated is not None
+    assert updated.result is not None
+    assert updated.result.validation.approved is False
+    assert planner.call_count == 2
