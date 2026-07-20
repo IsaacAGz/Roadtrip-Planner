@@ -116,11 +116,16 @@ GET /trips/jobs/{job_id}:
   return job status, progress events, result (when completed)
 
 run_planning_job(job_id, request):
+  context = resolve_feasibility(request)           # reuses geocode/OSRM cache from POST
+  scaffold = build_trip_scaffold(request, context) # one-way trips only (v1)
   for attempt in range(max_replan_attempts + 1):
-    emit progress: planning, hard_validation, soft_validation
-    plan = planner(request, feedback)
+    emit progress: planning, normalizing, hard_validation, soft_validation
+    plan = planner(request, feedback, scaffold=scaffold)
+    plan = enrich_plan(plan, request, scaffold=scaffold)  # legs, OSRM hours, stop trim
     hard_report = run_hard_validators(plan, request)
-    if hard_report.hard_failures: feedback → continue
+    if hard_report.hard_failures:
+      feedback = format_replan_feedback(hard_report.hard_failures, scaffold=scaffold) → continue
+    if soft_precheck(pace=relaxed + pacing warnings): feedback → continue
     soft_result = validator(plan, request)
     if soft_result.approved: complete job with TripResponse
     feedback = soft_result.replan_instructions → continue
@@ -153,6 +158,10 @@ Roadtrip_Planner/
 │   ├── test_preferences.py       # TripPreferences schema and formatting
 │   ├── test_weather_validator.py # WEATHER-001 outdoor forecast checks
 │   └── test_feasibility.py       # FEAS-001/002/003 pre-check + router 422
+│   ├── test_plan_enrichment.py   # Deterministic plan repair before hard validation
+│   ├── test_trip_scaffold.py     # OSRM daily leg scaffold
+│   ├── test_replan_feedback.py   # Structured replan feedback templates
+│   ├── test_soft_precheck.py     # Relaxed-pace warning gate
 │   ├── test_api_integration.py   # HTTP API tests for async planning jobs
 │   ├── test_job_store.py         # In-memory job store
 │   └── test_planning_job.py      # Background planning service
@@ -175,7 +184,13 @@ Roadtrip_Planner/
 │   │   ├── osrm.py               # Routing client (distance, duration)
 │   │   ├── openweather.py        # Forecast client for validators
 │   │   ├── job_store.py          # In-memory async planning job store
-│   │   └── planning_job.py       # Background replan loop + progress events
+│   │   ├── job_store.py          # In-memory job store + SSE pub/sub
+│   │   ├── planning_job.py       # Background replan loop + progress events
+│   │   ├── plan_enrichment.py    # Post-planner repair (legs, OSRM hours, stops)
+│   │   ├── trip_scaffold.py      # OSRM daily leg scaffold for planner
+│   │   ├── replan_feedback.py    # Rule-specific replan instructions
+│   │   ├── soft_precheck.py      # Deterministic pre-soft warning gate
+│   │   └── routing_utils.py      # Shared OSRM detour helpers
 │   ├── tools/
 │   │   ├── geocode.py
 │   │   ├── routing.py
@@ -522,6 +537,32 @@ Fail if OSRM cannot compute a driving route between geocoded endpoints.
 | Trip days below minimum driving days | FEAS-001 | 422 |
 
 **Design notes:** Always-on (no opt-in flag). Conservative for return trips (2× one-way OSRM hours when `allow_return_stops=true`). Does not account for detours — intentional lower bound; false "feasible" is possible, false "infeasible" is not. Does not replace post-plan GEO-001 or DRIVE-001 checks.
+
+### Plan enrichment (before hard validation)
+
+`enrich_plan()` in `app/services/plan_enrichment.py` runs after the planner on every attempt:
+
+1. Repair STRUCT-001 (day count, dates)
+2. Chain leg_start/leg_end coordinates across days
+3. Overwrite `driving_hours` from OSRM on each leg
+4. Drop excluded POI categories (POI-003)
+5. Trim over-detour stops (ROUTE-001) and cap stop count
+6. Optionally align overnight cities with OSRM scaffold when provided (`scaffold_mode`: `enforce`, `structure_only`, or `off`)
+7. Attach `route_geometry` from scaffold or a fresh OSRM geometry fetch for map display
+
+**Replan scaffold modes:** first attempt uses `enforce`; after `DRIVE-001` / `ROUTE-002` hard failures, enrichment switches to `structure_only` (fixes consecutive same-city STRUCT-004 only, does not snap far overnights back to scaffold).
+
+### Trip scaffold (before planner)
+
+For one-way trips (`allow_return_stops=false`), `build_trip_scaffold()` splits the **OSRM route geometry** (decoded driving polyline, not lat/lon interpolation) into daily legs with suggested overnight coordinates and injects them into planner prompts. Return trips skip scaffold (v1) and rely on enrichment + structured feedback.
+
+**SCAFFOLD-001:** After building the scaffold, `validate_scaffold_legs()` verifies each leg ≤ `max_driving_hours_per_day`. If any leg exceeds the cap, the job fails immediately with an actionable error (no LLM calls).
+
+Completed plans include `route_geometry` (`[[lat, lon], ...]`) for frontend map rendering.
+
+### Structured replan feedback
+
+Hard failures and relaxed-pace warning pre-checks produce rule-specific feedback (e.g. `DRIVE-001 day 2: reduce driving to ≤6h`) instead of raw validator messages.
 
 ### Hard validation pipeline (order)
 

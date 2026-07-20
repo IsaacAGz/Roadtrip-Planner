@@ -2,7 +2,7 @@ from app.models.constraints import TripConstraints
 from app.models.itinerary import DayPlan, RoadtripPlan
 from app.models.validation import RuleViolation
 from app.services.osrm import get_osrm_client
-from app.validators.routing import _day_leg, _detour_km
+from app.services.routing_utils import day_leg, detour_km
 
 DRIVING_WARN_RATIO = 0.9
 DETOUR_WARN_RATIO = 0.8
@@ -16,7 +16,7 @@ def _effective_driving_hours(day_plan: DayPlan, osrm_hours: float | None) -> flo
 
 
 async def _osrm_driving_hours(day_plan: DayPlan) -> float | None:
-    leg = _day_leg(day_plan)
+    leg = day_leg(day_plan)
     if leg is None:
         return None
     osrm = get_osrm_client()
@@ -72,12 +72,12 @@ async def collect_warnings(
                 )
             )
 
-        leg = _day_leg(day_plan)
+        leg = day_leg(day_plan)
         if leg is not None and day_plan.driving_hours > 0:
             origin, destination = leg
             for stop in day_plan.stops:
                 try:
-                    detour = await _detour_km(origin, destination, stop)
+                    detour = await detour_km(origin, destination, stop)
                     if (
                         detour <= constraints.max_detour_km_per_stop
                         and detour >= detour_warn_threshold

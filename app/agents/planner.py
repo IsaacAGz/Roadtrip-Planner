@@ -5,6 +5,7 @@ from langchain_openai import ChatOpenAI
 from app.config import get_settings
 from app.models.itinerary import RoadtripPlan
 from app.models.preferences import format_preferences_for_prompt
+from app.models.scaffold import TripScaffold
 from app.models.trip import TripRequest
 from app.prompts.planner import (
     PLANNER_HUMAN_TEMPLATE,
@@ -53,7 +54,29 @@ def _extract_agent_output(result: dict) -> str:
     return str(content)
 
 
-async def run_planner(request: TripRequest, feedback: list[str] | None = None) -> RoadtripPlan:
+def _format_scaffold(scaffold: TripScaffold | None) -> str:
+    if scaffold is None:
+        return ""
+
+    lines = [
+        "Deterministic route scaffold (required overnight structure — do not repeat consecutive cities):"
+    ]
+    for spec in scaffold.days:
+        lines.append(
+            f"- Day {spec.day}: drive from ({spec.leg_start_lat:.4f}, {spec.leg_start_lon:.4f}) "
+            f"to overnight '{spec.suggested_overnight_city}' "
+            f"({spec.suggested_overnight_lat:.4f}, {spec.suggested_overnight_lon:.4f}); "
+            f"max driving {spec.max_driving_hours:.1f}h"
+        )
+    return "\n".join(lines)
+
+
+async def run_planner(
+    request: TripRequest,
+    feedback: list[str] | None = None,
+    *,
+    scaffold: TripScaffold | None = None,
+) -> RoadtripPlan:
     settings = get_settings()
     feedback = feedback or []
 
@@ -68,6 +91,7 @@ async def run_planner(request: TripRequest, feedback: list[str] | None = None) -
             free_text=request.preferences,
         ),
         constraints=request.constraints.model_dump_json(),
+        scaffold_section=_format_scaffold(scaffold),
         feedback_section=_format_feedback(feedback),
     )
 

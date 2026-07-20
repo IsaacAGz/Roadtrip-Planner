@@ -59,6 +59,8 @@ Additional notes are free-text supplements — honor both.
 
 Overnight reminder: unless allow_extended_stays is true, every consecutive day must have a different overnight city.
 
+{scaffold_section}
+
 {feedback_section}"""
 
 STRUCTURED_OUTPUT_SYSTEM = """Convert the roadtrip research into a structured itinerary.
@@ -68,5 +70,7 @@ stops (name, lat, lon, category, duration_hours, description, country_code),
 overnight (city, lat, lon, stay_type, nights, is_return_stop, country_code),
 and leg_start/leg_end coordinates for driving validation.
 Set plan-level origin_lat/lon and destination_lat/lon from geocoded endpoints.
+
+When a deterministic scaffold is provided, copy each day's leg_start/leg_end and overnight coordinates from the scaffold exactly.
 
 STRUCT-004 check before finalizing: list each day's overnight.city — no two consecutive days may share the same city unless allow_extended_stays is true in the constraints JSON."""

@@ -60,7 +60,7 @@ async def run_validator(
             free_text=request.preferences,
         ),
         constraints=request.constraints.model_dump_json(),
-        plan_json=plan.model_dump_json(indent=2),
+        plan_json=plan.json_for_llm_prompt(),
         warnings=warning_text,
     )
 

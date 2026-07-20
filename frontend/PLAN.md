@@ -34,7 +34,7 @@ Monorepo location: `frontend/` (sibling to `app/`).
 
 - Leaflet map with OpenStreetMap tiles
 - Origin (green), overnight stops (blue), destination (red)
-- Dashed polyline connecting stop order (approximate path, not OSRM geometry)
+- Solid OSRM driving route when `plan.route_geometry` is present; dashed line shows stop order otherwise
 - Auto-fit bounds and popups for each marker
 
 ### Phase D (implemented)

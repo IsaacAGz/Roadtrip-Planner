@@ -56,7 +56,11 @@ def _plan_with_day(
 
 @pytest.fixture
 def fake_osrm():
-    with patch("app.validators.routing.get_osrm_client", return_value=FakeOSRMClient()):
+    client = FakeOSRMClient()
+    with (
+        patch("app.services.routing_utils.get_osrm_client", return_value=client),
+        patch("app.validators.routing.get_osrm_client", return_value=client),
+    ):
         yield
 
 

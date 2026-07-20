@@ -69,6 +69,7 @@ export interface RoadtripPlan {
   destination_lon: number;
   days: DayPlan[];
   tips: string[];
+  route_geometry?: number[][];
 }
 
 export interface RuleViolation {

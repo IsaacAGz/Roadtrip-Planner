@@ -62,6 +62,44 @@ class NominatimClient:
         self._cache[normalized] = result
         return result
 
+    async def reverse_geocode(self, lat: float, lon: float) -> GeocodedLocation:
+        cache_key = f"{lat:.5f},{lon:.5f}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
+        await self._throttle()
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                f"{self._settings.nominatim_base_url}/reverse",
+                params={"lat": lat, "lon": lon, "format": "json", "addressdetails": 1},
+                headers={"User-Agent": self._settings.nominatim_user_agent},
+            )
+            response.raise_for_status()
+            item = response.json()
+
+        if not item:
+            raise ValueError(f"Could not reverse geocode location: ({lat}, {lon})")
+
+        address = item.get("address", {})
+        country_code = (address.get("country_code", "") or "").upper()
+        city = (
+            address.get("city")
+            or address.get("town")
+            or address.get("village")
+            or address.get("hamlet")
+            or address.get("county")
+            or item.get("display_name", "Overnight stop")
+        )
+
+        result = GeocodedLocation(
+            display_name=str(city),
+            lat=lat,
+            lon=lon,
+            country_code=country_code,
+        )
+        self._cache[cache_key] = result
+        return result
+
 
 _nominatim_client: NominatimClient | None = None
 

@@ -39,6 +39,13 @@ export function TripMap({ plan }: TripMapProps) {
     [plan],
   );
   const route = useMemo(() => buildRoutePolyline(points), [points]);
+  const roadGeometry = useMemo(
+    () =>
+      (plan.route_geometry ?? []).map(
+        (coordinate) => [coordinate[0], coordinate[1]] as [number, number],
+      ),
+    [plan.route_geometry],
+  );
   const bounds = useMemo(() => {
     if (points.length === 0) {
       return null;
@@ -54,8 +61,10 @@ export function TripMap({ plan }: TripMapProps) {
       <div className="border-b border-slate-200 px-6 py-4">
         <h2 className="text-lg font-semibold text-slate-900">Route map</h2>
         <p className="mt-1 text-sm text-slate-600">
-          OpenStreetMap view of origin, overnight stops, and destination. Line shows planned stop order,
-          not OSRM road geometry.
+          OpenStreetMap view of origin, overnight stops, and destination.
+          {roadGeometry.length > 0
+            ? " Solid line shows the OSRM driving route; markers show planned stops."
+            : " Dashed line shows planned stop order, not OSRM road geometry."}
         </p>
         <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-600">
           <span className="inline-flex items-center gap-2">
@@ -80,9 +89,20 @@ export function TripMap({ plan }: TripMapProps) {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           {bounds && <FitBounds bounds={bounds} />}
+          {roadGeometry.length > 0 && (
+            <Polyline
+              positions={roadGeometry}
+              pathOptions={{ color: "#2563eb", weight: 4 }}
+            />
+          )}
           <Polyline
             positions={route}
-            pathOptions={{ color: "#64748b", weight: 3, dashArray: "8 8" }}
+            pathOptions={{
+              color: "#94a3b8",
+              weight: roadGeometry.length > 0 ? 2 : 3,
+              dashArray: roadGeometry.length > 0 ? "4 6" : "8 8",
+              opacity: roadGeometry.length > 0 ? 0.7 : 1,
+            }}
           />
           {points.map((point, index) => {
             const style = getMapPointStyle(point.kind);

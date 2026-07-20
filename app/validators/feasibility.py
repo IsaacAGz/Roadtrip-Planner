@@ -1,9 +1,10 @@
 import math
+from dataclasses import dataclass
 from typing import Any
 
 from app.models.trip import TripRequest
 from app.services.nominatim import GeocodedLocation, get_nominatim_client
-from app.services.osrm import get_osrm_client
+from app.services.osrm import RouteResult, get_osrm_client
 
 
 class FeasibilityError(Exception):
@@ -30,6 +31,13 @@ class FeasibilityError(Exception):
         }
 
 
+@dataclass
+class FeasibilityContext:
+    origin: GeocodedLocation
+    destination: GeocodedLocation
+    route: RouteResult
+
+
 def _check_country_allowed(
     location: GeocodedLocation,
     *,
@@ -50,7 +58,7 @@ def _check_country_allowed(
         )
 
 
-async def check_trip_feasibility(request: TripRequest) -> None:
+async def resolve_feasibility(request: TripRequest) -> FeasibilityContext:
     nominatim = get_nominatim_client()
     constraints = request.constraints
 
@@ -113,3 +121,9 @@ async def check_trip_feasibility(request: TripRequest) -> None:
             actual=request.days,
             limit=min_days_required,
         )
+
+    return FeasibilityContext(origin=origin, destination=destination, route=route)
+
+
+async def check_trip_feasibility(request: TripRequest) -> None:
+    await resolve_feasibility(request)

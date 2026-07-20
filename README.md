@@ -11,7 +11,10 @@ For full architecture and design details, see [PLAN.md](PLAN.md).
 - **Hard validators** — Python + OSRM checks for driving hours, detours, backtracking, structure, geography, and POI rules
 - **Validator agent** — soft checks for pacing, preferences, and weather fit
 - **Async planning jobs** — `POST /trips/plan` returns immediately with a job ID; poll for progress and result
-- **Replan loop** — automatically retries with structured feedback when validation fails
+- **Replan loop** — automatically retries with structured, rule-specific feedback when validation fails
+- **Plan enrichment** — deterministic repair of legs, OSRM driving hours, and stop placement before hard validation
+- **Trip scaffold** — OSRM route-geometry daily leg targets injected into planner prompts (one-way trips)
+- **Scaffold validation (SCAFFOLD-001)** — fails doomed jobs before LLM when a daily leg exceeds the driving cap
 - **Web UI** — React app in `frontend/` (form, preferences, constraints, live progress via SSE, job history, OSM route map, itinerary view)
 - **Structured JSON** — Pydantic models throughout (not free-form markdown)
 
@@ -252,6 +255,11 @@ GitHub Actions runs the same test suite on every pull request to `main`.
 | `tests/test_api_integration.py` | HTTP API tests for `/health`, `/trips/plan`, `/trips/jobs/{id}`, SSE events |
 | `tests/test_job_store.py`       | In-memory job store + subscriber notifications                 |
 | `tests/test_planning_job.py`    | Background planning service + progress events                  |
+| `tests/test_plan_enrichment.py` | Deterministic plan repair before hard validation               |
+| `tests/test_trip_scaffold.py`   | OSRM daily leg scaffold + SCAFFOLD-001 validation              |
+| `tests/test_osrm_geometry.py`   | Polyline decode + geometry-based route splitting               |
+| `tests/test_replan_feedback.py` | Structured replan feedback templates                           |
+| `tests/test_soft_precheck.py`   | Relaxed-pace warning pre-check                                 |
 
 
 Run a single file:
@@ -340,7 +348,7 @@ app/
 ├── routers/trips.py     # POST /trips/plan + GET /trips/jobs/{id} + SSE events
 ├── agents/              # Planner and Validator agents
 ├── tools/               # LangChain tools (geocode, routing, overpass, wiki, weather)
-├── services/            # Nominatim, OSRM, OpenWeather, job store, planning jobs
+├── services/            # Nominatim, OSRM, job store, scaffold, enrichment, planning jobs
 ├── validators/          # FEAS pre-check + hard validation (incl. WEATHER-001)
 └── prompts/             # Agent system prompts
 
