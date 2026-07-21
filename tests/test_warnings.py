@@ -75,6 +75,7 @@ def _plan(*days: DayPlan, origin: tuple[float, float] = (0.0, 0.0), destination:
 def fake_osrm():
     client = FakeOSRMClient()
     with (
+        patch("app.services.routing_utils.get_osrm_client", return_value=client),
         patch("app.validators.warnings.get_osrm_client", return_value=client),
         patch("app.validators.routing.get_osrm_client", return_value=client),
         patch("app.validators.driving.get_osrm_client", return_value=client),

@@ -4,6 +4,7 @@ from langchain_openai import ChatOpenAI
 
 from app.config import get_settings
 from app.models.itinerary import RoadtripPlan
+from app.models.preferences import format_preferences_for_prompt
 from app.models.trip import TripRequest
 from app.models.validation import RuleViolation, ValidationResult
 from app.prompts.validator import (
@@ -54,9 +55,12 @@ async def run_validator(
         start_date=request.start_date.isoformat(),
         end_date=request.end_date.isoformat(),
         days=request.days,
-        preferences=request.preferences or "none specified",
+        preferences=format_preferences_for_prompt(
+            structured=request.structured_preferences,
+            free_text=request.preferences,
+        ),
         constraints=request.constraints.model_dump_json(),
-        plan_json=plan.model_dump_json(indent=2),
+        plan_json=plan.json_for_llm_prompt(),
         warnings=warning_text,
     )
 

@@ -14,14 +14,26 @@ Use them as signals, not automatic failures.
 | ROUTE-001 (warning) | A stop's detour is near max_detour_km_per_stop (≥80% of limit) | Approve for scenic/exploration preferences. Reject if user asked for direct/efficient routes. |
 | ROUTE-002 (warning) | Total backtracking is near max_backtracking_percent | Reject if user wants efficient point-to-point travel. More acceptable for scenic or return-trip plans. |
 
+Structured preferences (use these for soft validation):
+| Field | Values | How to use |
+|-------|--------|------------|
+| pace=relaxed | relaxed | Reject packed days, near-limit driving (DRIVE-001 warnings), or max stops with long durations |
+| pace=moderate | moderate | Balanced scrutiny — warnings matter more on individual days |
+| pace=packed | packed | Allow fuller days; reject only if clearly unrealistic |
+| budget=budget | budget | Reject luxury resorts or expensive-only itineraries |
+| budget=moderate | moderate | Standard mix of stay types |
+| budget=luxury | luxury | Reject mostly budget/camping plans unless notes say otherwise |
+| accessibility=true | true | Reject strenuous outdoor activities, long hikes, or inaccessible venues |
+| interests | list | Stops and themes should reflect listed interests when possible |
+
 Warning guidelines:
 - Warnings alone do NOT require rejection — weigh them against preferences and overall pacing.
 - Multiple warnings on the same day increase scrutiny; consider rejecting if the day looks unrealistic.
 - If warnings is "None", no borderline hard-rule issues were detected.
 
 Also check (soft rules):
-- Pacing: is any day too rushed given driving, stops, and stop durations?
-- Preferences: were user preferences respected (scenic routes, food, family-friendly, direct route, etc.)?
+- Pacing: match structured pace (relaxed/moderate/packed) against driving, stops, and stop durations
+- Preferences: honor structured interests, budget, accessibility, and any additional notes
 - Weather fit: do outdoor activities conflict with forecast conditions mentioned in the plan?
 - Coherence: does the narrative match structured data (dates, cities, leg coordinates)?
 - Overnight structure: consecutive days should not share the same overnight city unless allow_extended_stays is true.

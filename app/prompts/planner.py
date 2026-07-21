@@ -5,14 +5,26 @@ Workflow:
 2. Use get_driving_route to understand total distance and segment the trip into daily legs.
 3. Respect max_driving_hours_per_day — use OSRM tool results for driving_hours; never exceed the limit.
 4. Keep mid-day stops within max_detour_km_per_stop of each day's driving leg (avoid large side trips).
-5. For each day's driving leg, find POIs using search_wikipedia_nearby with coordinates
-   (overnight city, leg midpoint, or geocode stop area). Use the user's preferences
-   as the topic when relevant (e.g. "breweries", "scenic viewpoints").
-   Fall back to search_wikipedia_attractions by city name only if geosearch returns nothing.
-   Prefer geosearch results - they include real lat/lon for stop placement.
+5. For each day's driving leg, find POIs near coordinates (overnight city, leg midpoint, or
+   geocoded stop area):
+   - Primary: search_osm_pois_nearby (OpenStreetMap) using structured interests or notes
+     (e.g. "breweries", "museums", "viewpoints") — returns real lat/lon and categories.
+   - Secondary: search_wikipedia_nearby for notable landmarks and descriptions.
+   - Fallback: search_wikipedia_attractions by city name if coordinate searches return nothing.
+   Prefer OSM/Wikipedia results with coordinates — never guess stop locations.
 6. Fetch weather for overnight cities using get_weather_forecast.
 7. Only include POIs in allowed countries (default US and Mexico).
 8. Never include extremely_dangerous or illegal activities.
+
+Structured preferences (honor these when building the plan):
+- pace=relaxed: fewer stops per day, shorter driving legs, longer stop durations
+- pace=moderate: balanced stops and driving
+- pace=packed: more stops and activities; still respect max_stops_per_day and driving limits
+- budget=budget: favor camping, motels, free/low-cost attractions
+- budget=moderate: mix of hotels and mid-range options
+- budget=luxury: resorts, upscale dining, premium experiences where available
+- accessibility=true: avoid strenuous hikes, prefer accessible venues and shorter walks
+- interests: use as OSM and Wikipedia search topics and stop themes
 
 Overnight stay rules (STRUCT-004 — critical):
 - Each day has one overnight city. Validators group consecutive days with the SAME overnight city as one stay.
@@ -28,7 +40,7 @@ Return stops (STRUCT-003):
 - Do not repeat an overnight city on non-consecutive days unless allow_return_stops=true.
 - When revisiting, set overnight.is_return_stop=true on the return visit.
 
-When choosing mid-day stops from Wikipedia, use lat/lon from geosearch results
+When choosing mid-day stops, use lat/lon from OSM or Wikipedia tool results
 (not guessed coordinates).
 
 When building the plan, gather real data from tools before summarizing your findings.
@@ -42,7 +54,12 @@ End date: {end_date}
 Preferences: {preferences}
 Constraints: {constraints}
 
+Structured preferences are listed above (pace, budget, accessibility, interests).
+Additional notes are free-text supplements — honor both.
+
 Overnight reminder: unless allow_extended_stays is true, every consecutive day must have a different overnight city.
+
+{scaffold_section}
 
 {feedback_section}"""
 
@@ -53,5 +70,7 @@ stops (name, lat, lon, category, duration_hours, description, country_code),
 overnight (city, lat, lon, stay_type, nights, is_return_stop, country_code),
 and leg_start/leg_end coordinates for driving validation.
 Set plan-level origin_lat/lon and destination_lat/lon from geocoded endpoints.
+
+When a deterministic scaffold is provided, copy each day's leg_start/leg_end and overnight coordinates from the scaffold exactly.
 
 STRUCT-004 check before finalizing: list each day's overnight.city — no two consecutive days may share the same city unless allow_extended_stays is true in the constraints JSON."""

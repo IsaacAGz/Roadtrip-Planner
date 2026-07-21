@@ -46,3 +46,8 @@ class RoadtripPlan(BaseModel):
     destination_lon: float
     days: list[DayPlan]
     tips: list[str] = Field(default_factory=list)
+    route_geometry: list[list[float]] = Field(default_factory=list)
+
+    def json_for_llm_prompt(self) -> str:
+        """Serialize for LLM prompts; excludes map-only route_geometry."""
+        return self.model_dump_json(exclude={"route_geometry"}, indent=2)

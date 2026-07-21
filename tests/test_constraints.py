@@ -12,6 +12,9 @@ def test_default_constraints_are_valid():
     assert constraints.max_driving_hours_per_day == 6.0
     assert constraints.max_nights_per_stop == 1
     assert constraints.allowed_countries == ["US", "MX"]
+    assert constraints.fail_on_weather_warnings is False
+    assert constraints.max_precip_chance == 0.5
+    assert constraints.min_temp_c == 10.0
 
 
 def test_extended_stays_required_for_multi_night_stop():
