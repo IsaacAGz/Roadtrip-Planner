@@ -53,6 +53,10 @@ NOMINATIM_USER_AGENT=RoadtripPlanner/1.0 (you@example.com)
 LANGSMITH_API_KEY=...
 LANGSMITH_TRACING=true
 LANGSMITH_PROJECT=Roadtrip_Planner
+
+# Optional — POI provider (defaults to OpenStreetMap)
+POI_PROVIDER=osm
+# GOOGLE_PLACES_API_KEY=
 ```
 
 ## Run

@@ -3,6 +3,36 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+RESERVABLE_CATEGORIES = frozenset(
+    {
+        "museum",
+        "aquarium",
+        "camp_site",
+        "hotel",
+        "motel",
+        "guest_house",
+        "theatre",
+        "cinema",
+    }
+)
+
+__all__ = [
+    "RESERVABLE_CATEGORIES",
+    "DayPlan",
+    "OvernightStop",
+    "PlaceContact",
+    "RoadtripPlan",
+    "Stop",
+]
+
+
+class PlaceContact(BaseModel):
+    phone: str | None = None
+    website: str | None = None
+    address: str | None = None
+    opening_hours: str | None = None
+    reservation_required: bool = False
+
 
 class Stop(BaseModel):
     name: str
@@ -12,6 +42,7 @@ class Stop(BaseModel):
     duration_hours: float = Field(default=1.0, ge=0.25, le=8.0)
     description: str = ""
     country_code: str = ""
+    contact: PlaceContact = Field(default_factory=PlaceContact)
 
 
 class OvernightStop(BaseModel):
@@ -22,6 +53,8 @@ class OvernightStop(BaseModel):
     nights: int = Field(default=1, ge=1, le=7)
     is_return_stop: bool = False
     country_code: str = ""
+    property_name: str | None = None
+    contact: PlaceContact = Field(default_factory=PlaceContact)
 
 
 class DayPlan(BaseModel):

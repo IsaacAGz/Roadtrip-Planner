@@ -478,7 +478,9 @@ Each violation includes: `rule_id`, `severity` (`error` \| `warning` \| `info`),
 |------|---------|
 | `geocode_location` | City/landmark → coordinates + country |
 | `get_driving_route` | Segment distance (km) + duration (hours) |
-| `search_osm_pois_nearby` | POI discovery near coordinates (Overpass / OSM) |
+| `search_places_nearby` | POI discovery with contact info (OSM default; optional Google Places) |
+| `search_osm_accommodations_nearby` | Hotels, motels, resorts, campgrounds near coordinates |
+| `search_osm_pois_nearby` | Low-level OSM POI search (used by provider layer) |
 | `search_wikipedia_attractions` | POI discovery by place name (text search) |
 | `search_wikipedia_nearby` | POI discovery near coordinates (geosearch) |
 | `get_weather_forecast` | Forecast for overnight cities |
@@ -709,6 +711,8 @@ See `.env.example` for a full template.
 | Setting | Default |
 |---------|---------|
 | `openai_model` | `gpt-4o-mini` |
+| `poi_provider` | `osm` |
+| `google_places_api_key` | `` (optional; enables future Google Places provider) |
 | `osrm_base_url` | `https://router.project-osrm.org` |
 | `nominatim_base_url` | `https://nominatim.openstreetmap.org` |
 | `wikipedia_api_url` | `https://en.wikipedia.org/w/api.php` |

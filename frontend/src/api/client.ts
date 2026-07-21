@@ -31,6 +31,14 @@ export interface ProgressEvent {
   timestamp: string;
 }
 
+export interface PlaceContact {
+  phone?: string | null;
+  website?: string | null;
+  address?: string | null;
+  opening_hours?: string | null;
+  reservation_required?: boolean;
+}
+
 export interface Stop {
   name: string;
   lat: number;
@@ -39,6 +47,7 @@ export interface Stop {
   duration_hours: number;
   description: string;
   country_code: string;
+  contact?: PlaceContact;
 }
 
 export interface OvernightStop {
@@ -49,6 +58,8 @@ export interface OvernightStop {
   nights: number;
   is_return_stop: boolean;
   country_code: string;
+  property_name?: string | null;
+  contact?: PlaceContact;
 }
 
 export interface DayPlan {

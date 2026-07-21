@@ -1,4 +1,5 @@
 import type { RoadtripPlan } from "../api/client";
+import { PlaceContactDetails } from "./PlaceContactDetails";
 
 interface ItineraryViewProps {
   plan: RoadtripPlan;
@@ -44,6 +45,7 @@ export function ItineraryView({ plan }: ItineraryViewProps) {
                       <p className="mt-1 text-xs text-slate-500">
                         {stop.category} · {stop.duration_hours} h
                       </p>
+                      <PlaceContactDetails contact={stop.contact} />
                     </li>
                   ))}
                 </ul>
@@ -51,9 +53,17 @@ export function ItineraryView({ plan }: ItineraryViewProps) {
             )}
 
             <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm">
-              <span className="font-medium text-slate-800">Overnight:</span> {day.overnight.city} (
-              {day.overnight.stay_type}, {day.overnight.nights} night
+              <span className="font-medium text-slate-800">Overnight:</span>{" "}
+              {day.overnight.property_name ? (
+                <>
+                  {day.overnight.property_name} ({day.overnight.city})
+                </>
+              ) : (
+                day.overnight.city
+              )}{" "}
+              ({day.overnight.stay_type}, {day.overnight.nights} night
               {day.overnight.nights === 1 ? "" : "s"})
+              <PlaceContactDetails contact={day.overnight.contact} />
             </div>
           </article>
         ))}

@@ -5,10 +5,15 @@ import httpx
 from langchain_core.tools import tool
 
 from app.config import get_settings
+from app.tools.osm_contact import (
+    cuisine_for_interest,
+    extract_osm_contact,
+    format_contact_suffix,
+)
 
 MAX_RADIUS_M = 10_000
 MIN_RADIUS_M = 10
-DEFAULT_LIMIT = 5
+DEFAULT_LIMIT = 10
 QUERY_TIMEOUT_S = 25
 
 DEFAULT_POI_TAGS: list[tuple[str, str]] = [
@@ -42,6 +47,20 @@ INTEREST_TAG_MAP: dict[str, list[tuple[str, str]]] = {
     "park": [("leisure", "park")],
     "food": [("amenity", "restaurant"), ("amenity", "cafe")],
     "restaurants": [("amenity", "restaurant")],
+    "theatre": [("amenity", "theatre"), ("amenity", "cinema")],
+    "theater": [("amenity", "theatre"), ("amenity", "cinema")],
+    "shows": [("amenity", "theatre"), ("amenity", "cinema")],
+    "live_music": [
+        ("amenity", "nightclub"),
+        ("amenity", "bar"),
+        ("amenity", "music_venue"),
+    ],
+    "fine_dining": [("amenity", "restaurant")],
+    "local_food": [("amenity", "restaurant")],
+    "hotels": [("tourism", "hotel")],
+    "hotel": [("tourism", "hotel")],
+    "motels": [("tourism", "motel")],
+    "motel": [("tourism", "motel")],
 }
 
 
@@ -67,8 +86,10 @@ def _clamp_radius_m(radius_km: float) -> int:
 
 def _build_overpass_query(lat: float, lon: float, radius_m: int, interest: str) -> str:
     tag_lines: list[str] = []
+    cuisine = cuisine_for_interest(interest)
     for key, value in _interest_tags(interest):
-        selector = f'["{key}"="{value}"]'
+        cuisine_filter = f'["cuisine"="{cuisine}"]' if cuisine and value == "restaurant" else ""
+        selector = f'["{key}"="{value}"]{cuisine_filter}'
         tag_lines.append(f"  node{selector}(around:{radius_m},{lat},{lon});")
         tag_lines.append(f"  way{selector}(around:{radius_m},{lat},{lon});")
 
@@ -122,12 +143,14 @@ def _parse_overpass_elements(
         if item_lat is None or item_lon is None:
             continue
 
+        tags = element.get("tags", {})
         name, category = _element_name_and_category(element)
         dedupe_key = (name.casefold(), round(item_lat, 4), round(item_lon, 4))
         if dedupe_key in seen:
             continue
         seen.add(dedupe_key)
 
+        contact = extract_osm_contact(tags, category=category)
         results.append(
             {
                 "name": name,
@@ -135,11 +158,35 @@ def _parse_overpass_elements(
                 "lon": item_lon,
                 "category": category,
                 "dist_km": _haversine_km(lat, lon, item_lat, item_lon),
+                **contact,
             }
         )
 
     results.sort(key=lambda item: item["dist_km"])
     return results[:DEFAULT_LIMIT]
+
+
+async def query_osm_pois_nearby(
+    lat: float,
+    lon: float,
+    radius_km: float = 10.0,
+    interest: str = "attractions",
+) -> list[dict[str, Any]]:
+    settings = get_settings()
+    radius_m = _clamp_radius_m(radius_km)
+    query = _build_overpass_query(lat, lon, radius_m, interest)
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            settings.overpass_api_url,
+            data={"data": query},
+            headers={"User-Agent": settings.nominatim_user_agent},
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    elements = data.get("elements", [])
+    return _parse_overpass_elements(elements, lat=lat, lon=lon)
 
 
 def _format_overpass_results(
@@ -162,9 +209,11 @@ def _format_overpass_results(
         + ":"
     ]
     for item in results:
+        contact_suffix = format_contact_suffix(item)
         lines.append(
             f"- {item['name']} ({item['category']}): "
             f"lat={item['lat']}, lon={item['lon']}, {item['dist_km']:.1f} km away"
+            f"{contact_suffix}"
         )
     return "\n".join(lines)
 
@@ -177,19 +226,9 @@ async def search_osm_pois_nearby(
     interest: str = "attractions",
 ) -> str:
     """Search OpenStreetMap (Overpass API) for POIs near lat/lon within radius_km."""
-    settings = get_settings()
     radius_m = _clamp_radius_m(radius_km)
-    query = _build_overpass_query(lat, lon, radius_m, interest)
-
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                settings.overpass_api_url,
-                data={"data": query},
-                headers={"User-Agent": settings.nominatim_user_agent},
-            )
-            response.raise_for_status()
-            data = response.json()
+        results = await query_osm_pois_nearby(lat, lon, radius_km, interest)
     except httpx.HTTPStatusError as exc:
         return (
             f"Overpass POI search failed near ({lat}, {lon}): "
@@ -198,8 +237,6 @@ async def search_osm_pois_nearby(
     except httpx.RequestError as exc:
         return f"Overpass POI search failed near ({lat}, {lon}): {exc}"
 
-    elements = data.get("elements", [])
-    results = _parse_overpass_elements(elements, lat=lat, lon=lon)
     return _format_overpass_results(
         results,
         lat=lat,

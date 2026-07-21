@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -15,6 +16,8 @@ class Settings(BaseSettings):
     overpass_api_url: str = "https://overpass-api.de/api/interpreter"
     openweather_base_url: str = "https://api.openweathermap.org/data/2.5"
     openai_model: str = "gpt-4o-mini"
+    poi_provider: Literal["osm", "google_places"] = "osm"
+    google_places_api_key: str = ""
 
 
 @lru_cache

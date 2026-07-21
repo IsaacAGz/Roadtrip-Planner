@@ -5,6 +5,7 @@ import pytest
 
 from app.tools.overpass import (
     _build_overpass_query,
+    _format_overpass_results,
     _interest_tags,
     _parse_overpass_elements,
     search_osm_pois_nearby,
@@ -23,6 +24,66 @@ def mock_settings():
 def test_interest_tags_maps_breweries():
     tags = _interest_tags("breweries")
     assert ("amenity", "brewery") in tags
+
+
+def test_interest_tags_maps_theatre():
+    tags = _interest_tags("shows")
+    assert ("amenity", "theatre") in tags
+    assert ("amenity", "cinema") in tags
+
+
+def test_build_overpass_query_includes_cuisine_filter_for_thai():
+    query = _build_overpass_query(36.6, -121.9, 5000, "thai")
+    assert '["amenity"="restaurant"]["cuisine"="thai"]' in query
+
+
+def test_parse_overpass_elements_includes_contact_fields():
+    elements = [
+        {
+            "type": "node",
+            "lat": 36.601,
+            "lon": -121.901,
+            "tags": {
+                "name": "Near Museum",
+                "tourism": "museum",
+                "phone": "+1-555-0100",
+                "website": "https://museum.example",
+            },
+        }
+    ]
+
+    results = _parse_overpass_elements(elements, lat=36.6, lon=-121.9)
+
+    assert results[0]["phone"] == "+1-555-0100"
+    assert results[0]["website"] == "https://museum.example"
+    assert results[0]["reservation_required"] is True
+
+
+def test_format_overpass_results_includes_contact_suffix():
+    formatted = _format_overpass_results(
+        [
+            {
+                "name": "Near Museum",
+                "category": "museum",
+                "lat": 36.601,
+                "lon": -121.901,
+                "dist_km": 0.2,
+                "phone": "+1-555-0100",
+                "website": "https://museum.example",
+                "address": None,
+                "opening_hours": None,
+                "reservation_required": True,
+            }
+        ],
+        lat=36.6,
+        lon=-121.9,
+        radius_km=10,
+        interest="museum",
+    )
+
+    assert "phone=+1-555-0100" in formatted
+    assert "website=https://museum.example" in formatted
+    assert "reservation recommended" in formatted
 
 
 def test_build_overpass_query_includes_around_filter():

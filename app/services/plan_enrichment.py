@@ -130,10 +130,17 @@ def _consecutive_same_city(plan: RoadtripPlan, day_index: int) -> bool:
 
 def _apply_scaffold_overnight(plan: RoadtripPlan, day_plan_index: int, spec) -> None:
     day_plan = plan.days[day_plan_index]
+    previous_lat = day_plan.overnight.lat
+    previous_lon = day_plan.overnight.lon
     day_plan.overnight.city = spec.suggested_overnight_city
     day_plan.overnight.lat = spec.suggested_overnight_lat
     day_plan.overnight.lon = spec.suggested_overnight_lon
     day_plan.overnight.country_code = spec.country_code
+    if (
+        round(previous_lat, 4) != round(spec.suggested_overnight_lat, 4)
+        or round(previous_lon, 4) != round(spec.suggested_overnight_lon, 4)
+    ):
+        day_plan.overnight.property_name = None
 
 
 def _enforce_scaffold_overnights(

@@ -219,6 +219,40 @@ async def test_enrich_plan_structure_only_preserves_far_overnight():
 
 
 @pytest.mark.asyncio
+async def test_enrich_plan_clears_property_name_when_scaffold_replaces_overnight():
+    request = _request()
+    plan = _plan_with_bad_structure()
+    scaffold = TripScaffold(
+        origin=GeocodedLocation("San Diego", 32.7, -117.1, "US"),
+        destination=GeocodedLocation("Portland", 45.5, -122.7, "US"),
+        trip_duration_hours=17.0,
+        route_geometry=[],
+        days=[
+            DayLegSpec(
+                day=1,
+                leg_start_lat=32.7,
+                leg_start_lon=-117.1,
+                leg_end_lat=34.0,
+                leg_end_lon=-118.0,
+                max_driving_hours=6.0,
+                suggested_overnight_city="Scaffold City",
+                suggested_overnight_lat=34.0,
+                suggested_overnight_lon=-118.0,
+                country_code="US",
+            )
+        ],
+    )
+    plan.days[0].overnight.property_name = "Planner Inn"
+    plan.days[0].overnight.lat = 36.6
+    plan.days[0].overnight.lon = -121.9
+
+    enriched = await enrich_plan(plan, request, scaffold=scaffold, scaffold_mode="enforce")
+
+    assert enriched.days[0].overnight.city == "Scaffold City"
+    assert enriched.days[0].overnight.property_name is None
+
+
+@pytest.mark.asyncio
 async def test_enrich_plan_attaches_route_geometry_from_scaffold():
     request = _request()
     plan = _plan_with_bad_structure()
