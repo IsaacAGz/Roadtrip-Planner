@@ -67,6 +67,14 @@ export function ProgressPanel({ jobId, status, progress, transport = "sse" }: Pr
         </div>
       </div>
 
+      {status === "queued" && progress.length <= 1 && (
+        <div className="mt-4 animate-pulse space-y-3 rounded-lg bg-slate-50 px-4 py-3">
+          <div className="h-3 w-1/3 rounded bg-slate-200" />
+          <div className="h-3 w-2/3 rounded bg-slate-200" />
+          <div className="h-3 w-1/2 rounded bg-slate-200" />
+        </div>
+      )}
+
       {latest && (
         <p className="mt-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-700">
           <span className="font-medium text-slate-900">Current step:</span> {latest.message}

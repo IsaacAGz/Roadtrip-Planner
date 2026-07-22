@@ -4,6 +4,8 @@ interface JobHistoryPanelProps {
   entries: JobHistoryEntry[];
   activeJobId: string | null;
   onSelect: (jobId: string) => void;
+  onViewSaved: (entry: JobHistoryEntry) => void;
+  onPlanAgain: (entry: JobHistoryEntry) => void;
   onClear: () => void;
   onRemove: (jobId: string) => void;
 }
@@ -26,19 +28,21 @@ export function JobHistoryPanel({
   entries,
   activeJobId,
   onSelect,
+  onViewSaved,
+  onPlanAgain,
   onClear,
   onRemove,
 }: JobHistoryPanelProps) {
   if (entries.length === 0) {
     return (
-      <section className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
+      <section className="no-print rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
         Recent trips will appear here after you complete or fail a planning job.
       </section>
     );
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="no-print rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-slate-900">Recent trips</h2>
@@ -63,11 +67,11 @@ export function JobHistoryPanel({
                 isActive ? "border-slate-900 bg-slate-50" : "border-slate-200"
               }`}
             >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex flex-col gap-3">
                 <button
                   type="button"
                   onClick={() => onSelect(entry.job_id)}
-                  className="min-w-0 flex-1 text-left"
+                  className="min-w-0 text-left"
                 >
                   <div className="truncate text-sm font-medium text-slate-900">
                     {entry.plan_title ?? formatRoute(entry)}
@@ -75,7 +79,7 @@ export function JobHistoryPanel({
                   <div className="mt-1 text-xs text-slate-600">{formatRoute(entry)}</div>
                   <div className="mt-1 text-xs text-slate-500">{formatDates(entry)}</div>
                 </button>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                       entry.status === "completed"
@@ -85,6 +89,24 @@ export function JobHistoryPanel({
                   >
                     {entry.status}
                   </span>
+                  {entry.result && (
+                    <button
+                      type="button"
+                      onClick={() => onViewSaved(entry)}
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      View saved
+                    </button>
+                  )}
+                  {entry.request && (
+                    <button
+                      type="button"
+                      onClick={() => onPlanAgain(entry)}
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      Plan again
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onRemove(entry.job_id)}

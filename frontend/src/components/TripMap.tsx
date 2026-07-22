@@ -76,6 +76,10 @@ export function TripMap({ plan }: TripMapProps) {
             Overnight
           </span>
           <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-orange-500" />
+            Stop
+          </span>
+          <span className="inline-flex items-center gap-2">
             <span className="h-3 w-3 rounded-full bg-red-500" />
             Destination
           </span>
@@ -121,6 +125,12 @@ export function TripMap({ plan }: TripMapProps) {
                 <Popup>
                   <div className="text-sm">
                     <div className="font-semibold">{point.label}</div>
+                    {point.category && (
+                      <div className="mt-1 text-slate-600 capitalize">
+                        {point.category}
+                        {point.durationHours != null ? ` · ${point.durationHours} h` : ""}
+                      </div>
+                    )}
                     <div className="mt-1 text-slate-600">
                       {point.lat.toFixed(4)}, {point.lon.toFixed(4)}
                     </div>

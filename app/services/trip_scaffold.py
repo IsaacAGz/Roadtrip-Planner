@@ -96,41 +96,39 @@ async def validate_scaffold_legs(scaffold: TripScaffold, request: TripRequest) -
             )
 
 
-async def build_trip_scaffold(
+async def _build_day_specs_from_legs(
     request: TripRequest,
-    context: FeasibilityContext | None = None,
-) -> TripScaffold | None:
-    if request.constraints.allow_return_stops:
-        return None
-
-    if context is not None:
-        origin = context.origin
-        destination = context.destination
-    else:
-        nominatim = get_nominatim_client()
-        origin = await nominatim.geocode(request.origin)
-        destination = await nominatim.geocode(request.destination)
-
-    osrm = get_osrm_client()
-    origin_coords = (origin.lat, origin.lon)
-    destination_coords = (destination.lat, destination.lon)
-    legs, geometry = await osrm.split_route_into_legs(
-        origin_coords,
-        destination_coords,
-        request.days,
-        request.constraints.max_driving_hours_per_day,
-        driving_target_ratio=_driving_target_ratio(request),
-    )
-
+    *,
+    origin: GeocodedLocation,
+    destination: GeocodedLocation,
+    legs: list,
+    return_flags: list[bool] | None,
+    origin_coords: tuple[float, float],
+    destination_coords: tuple[float, float],
+) -> list[DayLegSpec]:
     nominatim = get_nominatim_client()
     day_specs: list[DayLegSpec] = []
+    is_round_trip = return_flags is not None
+
     for index, leg in enumerate(legs):
         day_number = index + 1
-        if leg.end == destination_coords and leg.duration_hours == 0.0 and index > 0:
+        is_return_leg = return_flags[index] if return_flags is not None else False
+
+        if (
+            not is_round_trip
+            and leg.end == destination_coords
+            and leg.duration_hours == 0.0
+            and index > 0
+        ):
             overnight_city = destination.display_name
             overnight_lat = destination.lat
             overnight_lon = destination.lon
             country_code = destination.country_code
+        elif is_round_trip and leg.end == origin_coords and index == len(legs) - 1:
+            overnight_city = origin.display_name
+            overnight_lat = origin.lat
+            overnight_lon = origin.lon
+            country_code = origin.country_code
         else:
             try:
                 reverse = await nominatim.reverse_geocode(leg.end[0], leg.end[1])
@@ -155,8 +153,57 @@ async def build_trip_scaffold(
                 suggested_overnight_lat=overnight_lat,
                 suggested_overnight_lon=overnight_lon,
                 country_code=country_code,
+                is_return_leg=is_return_leg,
             )
         )
+
+    return day_specs
+
+
+async def build_trip_scaffold(
+    request: TripRequest,
+    context: FeasibilityContext | None = None,
+) -> TripScaffold | None:
+    if context is not None:
+        origin = context.origin
+        destination = context.destination
+    else:
+        nominatim = get_nominatim_client()
+        origin = await nominatim.geocode(request.origin)
+        destination = await nominatim.geocode(request.destination)
+
+    osrm = get_osrm_client()
+    origin_coords = (origin.lat, origin.lon)
+    destination_coords = (destination.lat, destination.lon)
+    is_round_trip = request.constraints.allow_return_stops
+
+    if is_round_trip:
+        legs, return_flags, geometry = await osrm.split_round_trip_into_legs(
+            origin_coords,
+            destination_coords,
+            request.days,
+            request.constraints.max_driving_hours_per_day,
+            driving_target_ratio=_driving_target_ratio(request),
+        )
+    else:
+        legs, geometry = await osrm.split_route_into_legs(
+            origin_coords,
+            destination_coords,
+            request.days,
+            request.constraints.max_driving_hours_per_day,
+            driving_target_ratio=_driving_target_ratio(request),
+        )
+        return_flags = None
+
+    day_specs = await _build_day_specs_from_legs(
+        request,
+        origin=origin,
+        destination=destination,
+        legs=legs,
+        return_flags=return_flags,
+        origin_coords=origin_coords,
+        destination_coords=destination_coords,
+    )
 
     return TripScaffold(
         origin=origin,

@@ -45,6 +45,7 @@ Overnight stay rules (STRUCT-004 — critical):
 Return stops (STRUCT-003):
 - Do not repeat an overnight city on non-consecutive days unless allow_return_stops=true.
 - When revisiting, set overnight.is_return_stop=true on the return visit.
+- When the scaffold marks a day as a return leg, treat that overnight as part of the return journey and set is_return_stop=true when the city was visited earlier on the outbound leg.
 
 When choosing mid-day stops, use lat/lon from OSM or Wikipedia tool results
 (not guessed coordinates).

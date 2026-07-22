@@ -14,6 +14,7 @@ class DayLegSpec(BaseModel):
     suggested_overnight_lat: float
     suggested_overnight_lon: float
     country_code: str = ""
+    is_return_leg: bool = False
 
 
 class TripScaffold(BaseModel):

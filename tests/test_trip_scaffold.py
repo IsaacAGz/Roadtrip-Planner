@@ -64,6 +64,34 @@ class FakeOSRMClient:
         )()
         return legs, geometry
 
+    async def split_round_trip_into_legs(self, origin, destination, num_days, max_hours_per_day, **kwargs):
+        outbound_legs, outbound_geometry = await self.split_route_into_legs(
+            origin,
+            destination,
+            max(1, num_days // 2),
+            max_hours_per_day,
+            **kwargs,
+        )
+        inbound_legs, inbound_geometry = await self.split_route_into_legs(
+            destination,
+            origin,
+            num_days - len(outbound_legs),
+            max_hours_per_day,
+            **kwargs,
+        )
+        combined_coords = outbound_geometry.coordinates + inbound_geometry.coordinates[1:]
+        geometry = type(
+            "Geometry",
+            (),
+            {
+                "coordinates": combined_coords,
+                "duration_hours": outbound_geometry.duration_hours + inbound_geometry.duration_hours,
+            },
+        )()
+        legs = outbound_legs + inbound_legs
+        return_flags = [False] * len(outbound_legs) + [True] * len(inbound_legs)
+        return legs[:num_days], return_flags[:num_days], geometry
+
 
 class FakeNominatimClient:
     async def reverse_geocode(self, lat, lon):
@@ -71,12 +99,19 @@ class FakeNominatimClient:
 
 
 @pytest.mark.asyncio
-async def test_build_trip_scaffold_returns_none_for_return_trips():
-    request = _request(constraints={"allow_return_stops": True})
+async def test_build_trip_scaffold_produces_return_trip_scaffold():
+    request = _request(constraints={"allow_return_stops": True, "max_backtracking_percent": 25.0})
 
-    scaffold = await build_trip_scaffold(request, context=_context())
+    with (
+        patch("app.services.trip_scaffold.get_osrm_client", return_value=FakeOSRMClient()),
+        patch("app.services.trip_scaffold.get_nominatim_client", return_value=FakeNominatimClient()),
+    ):
+        scaffold = await build_trip_scaffold(request, context=_context())
 
-    assert scaffold is None
+    assert scaffold is not None
+    assert len(scaffold.days) == 5
+    assert any(spec.is_return_leg for spec in scaffold.days)
+    assert len(scaffold.route_geometry) >= 4
 
 
 @pytest.mark.asyncio

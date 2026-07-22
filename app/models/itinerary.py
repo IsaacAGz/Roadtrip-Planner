@@ -19,6 +19,7 @@ RESERVABLE_CATEGORIES = frozenset(
 __all__ = [
     "RESERVABLE_CATEGORIES",
     "DayPlan",
+    "DayWeather",
     "OvernightStop",
     "PlaceContact",
     "RoadtripPlan",
@@ -32,6 +33,13 @@ class PlaceContact(BaseModel):
     address: str | None = None
     opening_hours: str | None = None
     reservation_required: bool = False
+
+
+class DayWeather(BaseModel):
+    summary: str
+    min_temp_c: float
+    max_temp_c: float
+    max_precip_chance: float = Field(ge=0.0, le=1.0)
 
 
 class Stop(BaseModel):
@@ -64,6 +72,7 @@ class DayPlan(BaseModel):
     driving_hours: float = Field(default=0.0, ge=0.0, le=24.0)
     stops: list[Stop] = Field(default_factory=list)
     overnight: OvernightStop
+    weather: DayWeather | None = None
     leg_start_lat: float | None = None
     leg_start_lon: float | None = None
     leg_end_lat: float | None = None

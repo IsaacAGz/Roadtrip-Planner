@@ -62,6 +62,13 @@ export interface OvernightStop {
   contact?: PlaceContact;
 }
 
+export interface DayWeather {
+  summary: string;
+  min_temp_c: number;
+  max_temp_c: number;
+  max_precip_chance: number;
+}
+
 export interface DayPlan {
   day: number;
   date: string;
@@ -69,6 +76,11 @@ export interface DayPlan {
   driving_hours: number;
   stops: Stop[];
   overnight: OvernightStop;
+  weather?: DayWeather | null;
+  leg_start_lat?: number | null;
+  leg_start_lon?: number | null;
+  leg_end_lat?: number | null;
+  leg_end_lon?: number | null;
 }
 
 export interface RoadtripPlan {

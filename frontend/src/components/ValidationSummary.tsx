@@ -5,8 +5,20 @@ interface ValidationSummaryProps {
   replanAttempts: number;
 }
 
+function groupByDay<T extends { day: number | null }>(items: T[]): Map<number | "general", T[]> {
+  const groups = new Map<number | "general", T[]>();
+  for (const item of items) {
+    const key = item.day ?? "general";
+    const existing = groups.get(key) ?? [];
+    existing.push(item);
+    groups.set(key, existing);
+  }
+  return groups;
+}
+
 export function ValidationSummary({ validation, replanAttempts }: ValidationSummaryProps) {
   const approved = validation.approved;
+  const warningGroups = groupByDay(validation.warnings);
 
   return (
     <section
@@ -28,7 +40,8 @@ export function ValidationSummary({ validation, replanAttempts }: ValidationSumm
           <ul className="mt-2 space-y-1 text-sm">
             {validation.hard_failures.map((failure, index) => (
               <li key={`${failure.rule_id}-${index}`}>
-                <strong>{failure.rule_id}</strong>: {failure.message}
+                <strong>{failure.rule_id}</strong>
+                {failure.day != null ? ` (day ${failure.day})` : ""}: {failure.message}
               </li>
             ))}
           </ul>
@@ -38,13 +51,20 @@ export function ValidationSummary({ validation, replanAttempts }: ValidationSumm
       {validation.warnings.length > 0 && (
         <div className="mt-4">
           <h3 className="text-sm font-semibold">Warnings</h3>
-          <ul className="mt-2 space-y-1 text-sm">
-            {validation.warnings.map((warning, index) => (
-              <li key={`${warning.rule_id}-${index}`}>
-                <strong>{warning.rule_id}</strong>: {warning.message}
-              </li>
+          <div className="mt-2 space-y-3 text-sm">
+            {[...warningGroups.entries()].map(([day, warnings]) => (
+              <div key={String(day)}>
+                <p className="font-medium">{day === "general" ? "General" : `Day ${day}`}</p>
+                <ul className="mt-1 space-y-1">
+                  {warnings.map((warning, index) => (
+                    <li key={`${warning.rule_id}-${index}`}>
+                      <strong>{warning.rule_id}</strong>: {warning.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
     </section>

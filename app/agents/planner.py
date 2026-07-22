@@ -64,8 +64,13 @@ def _format_scaffold(scaffold: TripScaffold | None) -> str:
         "Deterministic route scaffold (required overnight structure — do not repeat consecutive cities):"
     ]
     for spec in scaffold.days:
+        leg_note = (
+            " (return leg — set is_return_stop=true if revisiting this city)"
+            if spec.is_return_leg
+            else ""
+        )
         lines.append(
-            f"- Day {spec.day}: drive from ({spec.leg_start_lat:.4f}, {spec.leg_start_lon:.4f}) "
+            f"- Day {spec.day}{leg_note}: drive from ({spec.leg_start_lat:.4f}, {spec.leg_start_lon:.4f}) "
             f"to overnight '{spec.suggested_overnight_city}' "
             f"({spec.suggested_overnight_lat:.4f}, {spec.suggested_overnight_lon:.4f}); "
             f"max driving {spec.max_driving_hours:.1f}h"

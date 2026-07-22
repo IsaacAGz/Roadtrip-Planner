@@ -1,6 +1,6 @@
 import type { RoadtripPlan } from "../api/client";
 
-export type MapPointKind = "origin" | "destination" | "overnight";
+export type MapPointKind = "origin" | "destination" | "overnight" | "stop";
 
 export interface MapPoint {
   lat: number;
@@ -8,6 +8,8 @@ export interface MapPoint {
   label: string;
   kind: MapPointKind;
   day?: number;
+  category?: string;
+  durationHours?: number;
 }
 
 const kindStyles: Record<
@@ -17,6 +19,7 @@ const kindStyles: Record<
   origin: { color: "#15803d", fillColor: "#22c55e", radius: 9 },
   destination: { color: "#b91c1c", fillColor: "#ef4444", radius: 9 },
   overnight: { color: "#1d4ed8", fillColor: "#3b82f6", radius: 7 },
+  stop: { color: "#c2410c", fillColor: "#f97316", radius: 5 },
 };
 
 export function getMapPointStyle(kind: MapPointKind) {
@@ -34,6 +37,18 @@ export function buildMapPoints(plan: RoadtripPlan): MapPoint[] {
   ];
 
   for (const day of plan.days) {
+    for (const stop of day.stops) {
+      points.push({
+        lat: stop.lat,
+        lon: stop.lon,
+        label: `Day ${day.day}: ${stop.name}`,
+        kind: "stop",
+        day: day.day,
+        category: stop.category,
+        durationHours: stop.duration_hours,
+      });
+    }
+
     points.push({
       lat: day.overnight.lat,
       lon: day.overnight.lon,

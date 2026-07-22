@@ -4,7 +4,9 @@ from app.models.job import ProgressStage
 from app.models.trip import TripRequest, TripResponse
 from app.models.validation import ValidationReport
 from app.services.job_store import job_store
+from app.services.accommodation_enrichment import enrich_accommodations
 from app.services.plan_enrichment import ScaffoldMode, enrich_plan
+from app.services.weather_enrichment import enrich_weather
 from app.services.replan_feedback import format_replan_feedback
 from app.services.soft_precheck import run_soft_precheck
 from app.services.trip_scaffold import (
@@ -73,6 +75,8 @@ async def _execute_planning_loop(job_id: str, request: TripRequest) -> TripRespo
             scaffold=scaffold,
             scaffold_mode=scaffold_mode,
         )
+        plan = await enrich_weather(plan, request)
+        plan = await enrich_accommodations(plan, request)
 
         job_store.add_progress(
             job_id,

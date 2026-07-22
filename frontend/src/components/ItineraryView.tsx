@@ -1,4 +1,6 @@
 import type { RoadtripPlan } from "../api/client";
+import { DayWeatherCard } from "./DayWeatherCard";
+import { OpenInMapsLinks } from "./OpenInMapsLinks";
 import { PlaceContactDetails } from "./PlaceContactDetails";
 
 interface ItineraryViewProps {
@@ -30,9 +32,13 @@ export function ItineraryView({ plan }: ItineraryViewProps) {
               <h3 className="text-lg font-semibold text-slate-900">
                 Day {day.day} · {day.date}
               </h3>
-              <span className="text-sm text-slate-600">{day.driving_hours.toFixed(1)} h driving</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <OpenInMapsLinks plan={plan} day={day} />
+                <span className="text-sm text-slate-600">{day.driving_hours.toFixed(1)} h driving</span>
+              </div>
             </div>
             <p className="mt-2 text-sm text-slate-700">{day.route_summary}</p>
+            <DayWeatherCard weather={day.weather} />
 
             {day.stops.length > 0 && (
               <div className="mt-4">

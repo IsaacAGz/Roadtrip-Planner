@@ -101,6 +101,21 @@ def points_equal(left: LatLon, right: LatLon, *, tolerance: float = 1e-4) -> boo
     return abs(left[0] - right[0]) <= tolerance and abs(left[1] - right[1]) <= tolerance
 
 
+def combine_route_geometries(
+    outbound: RouteGeometry,
+    inbound: RouteGeometry,
+) -> tuple[RouteGeometry, int]:
+    """Concatenate outbound and inbound polylines; return combined geometry and turnaround index."""
+    combined_coords = outbound.coordinates + inbound.coordinates[1:]
+    turnaround_index = len(outbound.coordinates) - 1
+    combined = RouteGeometry(
+        distance_km=outbound.distance_km + inbound.distance_km,
+        duration_hours=outbound.duration_hours + inbound.duration_hours,
+        coordinates=combined_coords,
+    )
+    return combined, turnaround_index
+
+
 class OSRMClient:
     def __init__(self) -> None:
         self._settings = get_settings()
@@ -112,6 +127,9 @@ class OSRMClient:
         return f"{lon},{lat}"
 
     async def route(self, origin: LatLon, destination: LatLon) -> RouteResult:
+        if points_equal(origin, destination):
+            return RouteResult(distance_km=0.0, duration_hours=0.0)
+
         key = (origin, destination)
         if key in self._cache:
             return self._cache[key]
@@ -214,22 +232,24 @@ class OSRMClient:
 
         return best
 
-    async def split_route_into_legs(
+    async def _split_geometry_into_legs(
         self,
+        geometry: RouteGeometry,
         origin: LatLon,
         destination: LatLon,
         num_days: int,
         max_hours_per_day: float,
         *,
         driving_target_ratio: float = 0.95,
-    ) -> tuple[list[LegSegment], RouteGeometry | None]:
+        turnaround_index: int | None = None,
+    ) -> tuple[list[LegSegment], list[bool]]:
         if num_days <= 0:
-            return [], None
+            return [], []
 
-        geometry = await self.route_geometry(origin, destination)
         target_hours = max_hours_per_day * driving_target_ratio
         dest_index = len(geometry.coordinates) - 1
         legs: list[LegSegment] = []
+        return_flags: list[bool] = []
         current_start = origin
         start_index = 0
 
@@ -250,6 +270,16 @@ class OSRMClient:
                 )
 
             route = await self.route(current_start, end_point)
+            end_index = closest_geometry_index(
+                geometry.coordinates,
+                end_point,
+                min_index=start_index,
+            )
+            is_return = (
+                turnaround_index is not None
+                and end_index > turnaround_index
+                and not points_equal(end_point, destination)
+            )
             legs.append(
                 LegSegment(
                     start=current_start,
@@ -258,12 +288,9 @@ class OSRMClient:
                     distance_km=route.distance_km,
                 )
             )
+            return_flags.append(is_return)
             current_start = end_point
-            start_index = closest_geometry_index(
-                geometry.coordinates,
-                end_point,
-                min_index=start_index,
-            )
+            start_index = end_index
 
             if points_equal(end_point, destination):
                 while len(legs) < num_days:
@@ -275,9 +302,63 @@ class OSRMClient:
                             distance_km=0.0,
                         )
                     )
+                    return_flags.append(
+                        turnaround_index is not None
+                        and len(return_flags) > 0
+                        and return_flags[-1]
+                    )
                 break
 
-        return legs[:num_days], geometry
+        return legs[:num_days], return_flags[:num_days]
+
+    async def split_route_into_legs(
+        self,
+        origin: LatLon,
+        destination: LatLon,
+        num_days: int,
+        max_hours_per_day: float,
+        *,
+        driving_target_ratio: float = 0.95,
+    ) -> tuple[list[LegSegment], RouteGeometry | None]:
+        if num_days <= 0:
+            return [], None
+
+        geometry = await self.route_geometry(origin, destination)
+        legs, _ = await self._split_geometry_into_legs(
+            geometry,
+            origin,
+            destination,
+            num_days,
+            max_hours_per_day,
+            driving_target_ratio=driving_target_ratio,
+        )
+        return legs, geometry
+
+    async def split_round_trip_into_legs(
+        self,
+        origin: LatLon,
+        destination: LatLon,
+        num_days: int,
+        max_hours_per_day: float,
+        *,
+        driving_target_ratio: float = 0.95,
+    ) -> tuple[list[LegSegment], list[bool], RouteGeometry | None]:
+        if num_days <= 0:
+            return [], [], None
+
+        outbound = await self.route_geometry(origin, destination)
+        inbound = await self.route_geometry(destination, origin)
+        combined, turnaround_index = combine_route_geometries(outbound, inbound)
+        legs, return_flags = await self._split_geometry_into_legs(
+            combined,
+            origin,
+            origin,
+            num_days,
+            max_hours_per_day,
+            driving_target_ratio=driving_target_ratio,
+            turnaround_index=turnaround_index,
+        )
+        return legs, return_flags, combined
 
 
 _osrm_client: OSRMClient | None = None

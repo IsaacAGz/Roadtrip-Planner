@@ -1,8 +1,12 @@
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { TripRequestPayload } from "../api/client";
 import type { Budget, Pace } from "../lib/tripPayload";
-import { parseCommaList } from "../lib/tripPayload";
+import {
+  formValuesToPayload,
+  loadFormDraft,
+  saveFormDraft,
+} from "../lib/formPersistence";
 import { Accordion } from "./Accordion";
 
 export interface TripFormValues {
@@ -30,7 +34,7 @@ export interface TripFormValues {
   minTempC: number;
 }
 
-const defaultValues: TripFormValues = {
+export const defaultTripFormValues: TripFormValues = {
   origin: "San Jose, CA",
   destination: "Monterey, CA",
   startDate: "2026-07-15",
@@ -57,6 +61,7 @@ const defaultValues: TripFormValues = {
 
 interface TripFormProps {
   disabled?: boolean;
+  initialValues?: TripFormValues;
   onSubmit: (payload: TripRequestPayload) => void;
 }
 
@@ -64,43 +69,23 @@ const inputClassName = "w-full rounded-lg border border-slate-300 px-3 py-2";
 const labelClassName = "block space-y-1 text-sm";
 
 function buildPayload(values: TripFormValues): TripRequestPayload {
-  const interests = parseCommaList(values.interests);
-  const allowedCountries = parseCommaList(values.allowedCountries).map((country) =>
-    country.toUpperCase(),
-  );
-
-  return {
-    origin: values.origin.trim(),
-    destination: values.destination.trim(),
-    start_date: values.startDate,
-    end_date: values.endDate,
-    preferences: values.preferences.trim() || null,
-    structured_preferences: {
-      pace: values.pace,
-      budget: values.budget,
-      accessibility: values.accessibility,
-      interests,
-    },
-    constraints: {
-      max_driving_hours_per_day: values.maxDrivingHours,
-      max_stops_per_day: values.maxStopsPerDay,
-      max_replan_attempts: values.maxReplanAttempts,
-      max_detour_km_per_stop: values.maxDetourKm,
-      max_backtracking_percent: values.maxBacktrackingPercent,
-      require_progress_toward_destination: values.requireProgress,
-      allowed_countries: allowedCountries.length > 0 ? allowedCountries : undefined,
-      allow_extended_stays: values.allowExtendedStays,
-      max_nights_per_stop: values.allowExtendedStays ? values.maxNightsPerStop : 1,
-      allow_return_stops: values.allowReturnStops,
-      fail_on_weather_warnings: values.failOnWeatherWarnings,
-      max_precip_chance: values.maxPrecipChance,
-      min_temp_c: values.minTempC,
-    },
-  };
+  return formValuesToPayload(values);
 }
 
-export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
-  const [values, setValues] = useState<TripFormValues>(defaultValues);
+export function TripForm({ disabled = false, initialValues, onSubmit }: TripFormProps) {
+  const [values, setValues] = useState<TripFormValues>(
+    () => initialValues ?? loadFormDraft() ?? defaultTripFormValues,
+  );
+
+  useEffect(() => {
+    if (initialValues) {
+      setValues(initialValues);
+    }
+  }, [initialValues]);
+
+  useEffect(() => {
+    saveFormDraft(values);
+  }, [values]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
