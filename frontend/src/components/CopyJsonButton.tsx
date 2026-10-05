@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { quietButtonClass } from "../lib/ui";
 
 interface CopyJsonButtonProps {
   label?: string;
@@ -15,12 +16,8 @@ export function CopyJsonButton({ label = "Copy JSON", value }: CopyJsonButtonPro
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-    >
-      {copied ? "Copied!" : label}
+    <button type="button" onClick={handleCopy} className={quietButtonClass}>
+      {copied ? "Copied" : label}
     </button>
   );
 }

@@ -14,10 +14,13 @@ const kindStyles: Record<
   MapPointKind,
   { color: string; fillColor: string; radius: number }
 > = {
-  origin: { color: "#15803d", fillColor: "#22c55e", radius: 9 },
-  destination: { color: "#b91c1c", fillColor: "#ef4444", radius: 9 },
-  overnight: { color: "#1d4ed8", fillColor: "#3b82f6", radius: 7 },
+  origin: { color: "#1c3a2e", fillColor: "#3f6b56", radius: 9 },
+  destination: { color: "#8a4e10", fillColor: "#e08a2a", radius: 9 },
+  overnight: { color: "#245654", fillColor: "#3d7a78", radius: 7 },
 };
+
+export const routeLineColor = "#1c3a2e";
+export const plannedLineColor = "#5c6b62";
 
 export function getMapPointStyle(kind: MapPointKind) {
   return kindStyles[kind];

@@ -8,11 +8,11 @@ interface ErrorAlertProps {
 
 export function ErrorAlert({ title = "Request failed", message, detail }: ErrorAlertProps) {
   return (
-    <section className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">
-      <h2 className="font-semibold">{title}</h2>
-      <p className="mt-2 text-sm">{message}</p>
+    <section className="rounded-2xl bg-clay-wash p-5 text-clay ring-1 ring-clay/20" role="alert">
+      <h2 className="font-display text-2xl leading-none tracking-[-0.03em]">{title}</h2>
+      <p className="mt-3 max-w-prose text-sm leading-relaxed">{message}</p>
       {detail && (
-        <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-white/70 p-3 text-xs text-red-800">
+        <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-paper/80 p-3 text-xs text-clay">
           {formatApiErrorMessage(detail)}
         </pre>
       )}

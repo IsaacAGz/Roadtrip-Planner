@@ -116,6 +116,7 @@ export interface PydanticErrorDetail {
 }
 
 export type ApiErrorDetail =
+  | string
   | FeasibilityErrorDetail
   | PydanticErrorDetail[]
   | { detail: string };
@@ -132,6 +133,10 @@ export class ApiError extends Error {
 }
 
 export function formatApiErrorMessage(detail: ApiErrorDetail): string {
+  if (typeof detail === "string") {
+    return detail;
+  }
+
   if (Array.isArray(detail)) {
     return detail.map((item) => `${item.loc.join(".")}: ${item.msg}`).join("\n");
   }

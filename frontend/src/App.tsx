@@ -14,6 +14,8 @@ import { TripForm } from "./components/TripForm";
 import { TripMap } from "./components/TripMap";
 import { ValidationSummary } from "./components/ValidationSummary";
 import { usePlanningJob } from "./hooks/usePlanningJob";
+import mountainRoad from "./assets/photos/mountain-road.jpg";
+import { quietButtonClass } from "./lib/ui";
 import {
   clearJobHistory,
   loadJobHistory,
@@ -83,27 +85,42 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-5">
+    <div className="min-h-screen bg-sand font-marketing text-pine">
+      <a
+        href="#planner-main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-24 focus:z-50 focus:rounded-full focus:bg-paper focus:px-4 focus:py-2 focus:text-sm focus:text-pine"
+      >
+        Skip to planner
+      </a>
+      <header className="relative min-h-44 overflow-hidden">
+        <img
+          src={mountainRoad}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-pine/80 via-pine/55 to-pine/25" />
+        <div className="relative mx-auto flex min-h-44 max-w-6xl flex-col justify-end gap-4 px-4 pt-8 pb-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Roadtrip Planner</h1>
-            <p className="text-sm text-slate-600">AI itineraries with OSRM-verified driving segments</p>
+            <h1 className="font-display text-4xl leading-none tracking-[-0.03em] text-paper sm:text-5xl">
+              Plan the drive
+            </h1>
+            <p className="mt-3 max-w-md text-sm leading-relaxed text-paper/90">
+              Set the route and the dates. Each drive is checked on real roads.
+            </p>
           </div>
           {jobId && (
-            <button
-              type="button"
-              onClick={handleReset}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto"
-            >
+            <button type="button" onClick={handleReset} className={`${quietButtonClass} w-full sm:w-auto`}>
               Plan another trip
             </button>
           )}
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-4 px-3 py-6 sm:gap-6 sm:px-4 sm:py-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
-        <aside className="order-2 lg:order-1 lg:sticky lg:top-6">
+      <main
+        id="planner-main"
+        className="mx-auto grid max-w-6xl gap-6 px-4 pt-8 pb-12 sm:gap-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start"
+      >
+        <aside className="order-2 lg:order-1 lg:sticky lg:top-24">
           <JobHistoryPanel
             entries={history}
             activeJobId={jobId}
@@ -118,9 +135,17 @@ export function App() {
 
           {submitError && (
             <ErrorAlert
-              title={submitError.status === 422 ? "Trip request rejected" : "Could not start planning"}
-              message={submitError.message}
-              detail={submitError.detail}
+              title={
+                submitError.status === 422
+                  ? "Trip request rejected"
+                  : submitError.status === 429
+                    ? "Planning limit reached"
+                    : "Could not start planning"
+              }
+              message={
+                typeof submitError.detail === "string" ? submitError.detail : submitError.message
+              }
+              detail={typeof submitError.detail === "string" ? undefined : submitError.detail}
             />
           )}
 

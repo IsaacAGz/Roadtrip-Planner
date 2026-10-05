@@ -8,6 +8,7 @@ For full architecture and design details, see [PLAN.md](PLAN.md).
 
 - **Planner agent** — geocodes routes, finds POIs via OpenStreetMap (Overpass) and Wikipedia, fetches weather, and drafts an itinerary
 - **Feasibility pre-check** — geocodes endpoints and queries OSRM before any LLM calls; returns **422** for impossible trips (FEAS-001/002/003)
+- **Plan start caps** — per-network and global daily limits, plus a cap on plans running at once; returns **429** before a job is created
 - **Hard validators** — Python + OSRM checks for driving hours, detours, backtracking, structure, geography, and POI rules
 - **Validator agent** — soft checks for pacing, preferences, and weather fit
 - **Async planning jobs** — `POST /trips/plan` returns immediately with a job ID; poll for progress and result
@@ -91,9 +92,9 @@ See [frontend/PLAN.md](frontend/PLAN.md) for UI architecture and future phases.
 | `GET`  | `/trips/jobs/{job_id}/events` | SSE stream of job updates (`text/event-stream`) |
 
 
-**Request pipeline:** Pydantic validation → feasibility pre-check (Nominatim + OSRM) → background replan loop (Planner → hard validators → Validator agent).
+**Request pipeline:** Pydantic validation → plan start caps → feasibility pre-check (Nominatim + OSRM) → background replan loop (Planner → hard validators → Validator agent).
 
-Feasibility and validation errors still return **422** synchronously before a job is created.
+Feasibility and validation errors still return **422** synchronously before a job is created. Requests over a plan start cap return **429** before geocoding or a job.
 
 ### Example request
 
@@ -186,6 +187,30 @@ Example **422** for an under-length trip:
 | FEAS-002 | Origin/destination geocode failure, or endpoint country not in `allowed_countries` |
 | FEAS-003 | OSRM cannot find a driving route between endpoints |
 
+### Plan start caps (429 Too Many Requests)
+
+`POST /trips/plan` is capped before a job is created. Defaults, all set in `.env`:
+
+| Setting | Default | Meaning |
+| ------- | ------- | ------- |
+| `PLAN_DAILY_LIMIT_PER_IP` | 3 | Plan starts from one client address in a rolling 24 hours |
+| `PLAN_DAILY_LIMIT_GLOBAL` | 30 | Plan starts for the whole process in that same window |
+| `PLAN_MAX_CONCURRENT_JOBS` | 2 | Jobs still `queued` or `running` |
+| `PLAN_RATE_WINDOW_SECONDS` | 86400 | Length of the daily window |
+| `TRUST_X_FORWARDED_FOR` | false | When false, the direct client address is used |
+
+A start counts once it passes the daily caps, including a request that then fails the feasibility check. A rejection because too many jobs are already running does not count. `GET /trips/jobs/{job_id}` and the event stream stay open so a plan that already started can finish.
+
+The response includes `Retry-After` (seconds) and a short `detail` string. Example:
+
+```json
+{
+  "detail": "This network has reached the limit of 3 plans per 24 hours. Try again in 2 hours."
+}
+```
+
+Counts live in memory, same as the job store. More than one server process needs a shared store, or each process keeps its own budget and the cap is multiplied by the process count. Set `TRUST_X_FORWARDED_FOR=true` only behind a proxy you control that overwrites `X-Forwarded-For` with the visitor address. Otherwise a caller can send a new header value on every request and skip the per-network cap.
+
 ## Try it with curl
 
 **Git Bash:**
@@ -252,6 +277,7 @@ GitHub Actions runs the same test suite on every pull request to `main`.
 | `tests/test_overpass.py`    | Overpass OSM POI tool (mocked HTTP)                    |
 | `tests/test_weather_validator.py` | WEATHER-001 outdoor forecast checks (mocked)     |
 | `tests/test_feasibility.py`   | FEAS-001/002/003 pre-check + router 422 (mocked) |
+| `tests/test_plan_limits.py`   | Per-network, global, and concurrent plan start caps |
 | `tests/test_api_integration.py` | HTTP API tests for `/health`, `/trips/plan`, `/trips/jobs/{id}`, SSE events |
 | `tests/test_job_store.py`       | In-memory job store + subscriber notifications                 |
 | `tests/test_planning_job.py`    | Background planning service + progress events                  |
@@ -361,7 +387,8 @@ frontend/
 ## Operational notes
 
 - **Async planning jobs** — in-memory job store with pub/sub for SSE (dev/MVP); jobs lost on server restart
-- **Feasibility pre-check** — always runs on `POST /trips/plan`; uses Nominatim (2 calls at 1 req/sec) + OSRM before any OpenAI usage
+- **Plan start caps** — in-memory per process. A failed feasibility check still counts toward the daily caps. More than one server process needs a shared store, or each process keeps its own budget
+- **Feasibility pre-check** — always runs on `POST /trips/plan` after the caps; uses Nominatim (2 calls at 1 req/sec) + OSRM before any OpenAI usage
 - **Nominatim** — rate-limited to 1 request/second; use a descriptive `NOMINATIM_USER_AGENT`
 - **Overpass API** — public demo server is rate-limited; suitable for development only
 - **OSRM demo server** — suitable for development only; self-host for production

@@ -10,21 +10,23 @@ export function ValidationSummary({ validation, replanAttempts }: ValidationSumm
 
   return (
     <section
-      className={`rounded-xl border p-4 ${
-        approved ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-amber-200 bg-amber-50 text-amber-950"
+      className={`rounded-2xl p-5 ring-1 ${
+        approved ? "bg-moss-wash text-pine ring-pine/15" : "bg-amber/15 text-pine ring-amber/40"
       }`}
     >
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold">{approved ? "Plan approved" : "Plan needs review"}</h2>
-        <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-medium uppercase">
-          {approved ? "approved" : "not approved"}
+        <h2 className="font-display text-2xl leading-none tracking-[-0.03em]">
+          {approved ? "Plan approved" : "Plan needs review"}
+        </h2>
+        <span className="rounded-full bg-paper/80 px-3 py-1 text-xs">
+          {approved ? "Approved" : "Not approved"}
         </span>
-        <span className="text-sm">Replan attempts: {replanAttempts}</span>
+        <span className="text-sm tabular-nums">Replan attempts: {replanAttempts}</span>
       </div>
 
       {validation.hard_failures.length > 0 && (
         <div className="mt-4">
-          <h3 className="text-sm font-semibold">Hard failures</h3>
+          <h3 className="text-sm font-medium">Hard failures</h3>
           <ul className="mt-2 space-y-1 text-sm">
             {validation.hard_failures.map((failure, index) => (
               <li key={`${failure.rule_id}-${index}`}>
@@ -37,7 +39,7 @@ export function ValidationSummary({ validation, replanAttempts }: ValidationSumm
 
       {validation.warnings.length > 0 && (
         <div className="mt-4">
-          <h3 className="text-sm font-semibold">Warnings</h3>
+          <h3 className="text-sm font-medium">Warnings</h3>
           <ul className="mt-2 space-y-1 text-sm">
             {validation.warnings.map((warning, index) => (
               <li key={`${warning.rule_id}-${index}`}>

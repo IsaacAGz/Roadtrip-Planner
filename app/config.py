@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +16,11 @@ class Settings(BaseSettings):
     overpass_api_url: str = "https://overpass-api.de/api/interpreter"
     openweather_base_url: str = "https://api.openweathermap.org/data/2.5"
     openai_model: str = "gpt-4o-mini"
+    plan_daily_limit_per_ip: int = Field(default=3, ge=0)
+    plan_daily_limit_global: int = Field(default=30, ge=0)
+    plan_max_concurrent_jobs: int = Field(default=2, ge=0)
+    plan_rate_window_seconds: int = Field(default=86_400, ge=1)
+    trust_x_forwarded_for: bool = False
 
 
 @lru_cache

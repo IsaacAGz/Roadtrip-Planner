@@ -50,32 +50,30 @@ export function ProgressPanel({ jobId, status, progress, transport = "sse" }: Pr
   const jobSnapshot = { job_id: jobId, status, progress };
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl bg-paper p-6 text-pine shadow-[0_16px_40px_rgb(28_58_46_/_0.06)] ring-1 ring-pine/10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Planning in progress</h2>
-          <p className="mt-1 text-sm text-slate-600">Job {jobId}</p>
+          <h2 className="font-display text-3xl leading-none tracking-[-0.03em]">Planning in progress</h2>
+          <p className="mt-2 max-w-xs break-all font-mono text-xs text-pine-muted">Job {jobId}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <CopyJsonButton label="Copy job JSON" value={jobSnapshot} />
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-700">
-            {transport === "sse" ? "live updates" : "polling fallback"}
+          <span className="rounded-full bg-sand px-3 py-1 text-xs text-pine">
+            {transport === "sse" ? "Live updates" : "Polling fallback"}
           </span>
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-amber-800">
-            {status}
-          </span>
+          <span className="rounded-full bg-amber/20 px-3 py-1 text-xs capitalize text-pine">{status}</span>
         </div>
       </div>
 
       {latest && (
-        <p className="mt-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          <span className="font-medium text-slate-900">Current step:</span> {latest.message}
+        <p className="mt-4 rounded-xl bg-sand px-4 py-3 text-sm text-pine">
+          <span className="font-medium">Current step:</span> {latest.message}
           {latest.attempt !== null && latest.attempt > 0 ? ` (replan ${latest.attempt + 1})` : ""}
         </p>
       )}
 
       <div className="mt-6">
-        <h3 className="text-sm font-semibold text-slate-900">Timeline</h3>
+        <h3 className="font-display text-xl tracking-[-0.02em]">Timeline</h3>
         <ol className="mt-4 space-y-0">
           {stageOrder.map((stage, index) => {
             const events = progress.filter((event) => event.stage === stage);
@@ -91,35 +89,33 @@ export function ProgressPanel({ jobId, status, progress, transport = "sse" }: Pr
                 {index < stageOrder.length - 1 && (
                   <span
                     className={`absolute left-[11px] top-6 h-full w-0.5 ${
-                      isComplete ? "bg-emerald-300" : "bg-slate-200"
+                      isComplete ? "bg-pine/40" : "bg-pine/10"
                     }`}
                   />
                 )}
                 <span
-                  className={`relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                  className={`relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
                     isComplete
-                      ? "bg-emerald-500 text-white"
+                      ? "bg-pine text-paper"
                       : isActive
-                        ? "bg-amber-500 text-white"
-                        : "bg-slate-200 text-slate-600"
+                        ? "bg-amber text-pine"
+                        : "bg-sand-deep text-pine-muted"
                   }`}
                 >
                   {isComplete ? "✓" : index + 1}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-slate-900">{stageLabels[stage]}</span>
+                    <span className="font-medium text-pine">{stageLabels[stage]}</span>
                     {isActive && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-                        in progress
-                      </span>
+                      <span className="rounded-full bg-amber/20 px-2 py-0.5 text-xs text-pine">In progress</span>
                     )}
                   </div>
                   {events.length > 0 ? (
                     <ul className="mt-2 space-y-1">
                       {events.map((event, eventIndex) => (
-                        <li key={`${event.timestamp}-${eventIndex}`} className="text-sm text-slate-600">
-                          <span className="text-xs text-slate-400">{formatTimestamp(event.timestamp)}</span>
+                        <li key={`${event.timestamp}-${eventIndex}`} className="text-sm text-pine-muted">
+                          <span className="text-xs tabular-nums text-pine-muted">{formatTimestamp(event.timestamp)}</span>
                           {" · "}
                           {event.message}
                           {event.attempt !== null && event.attempt > 0
@@ -129,7 +125,7 @@ export function ProgressPanel({ jobId, status, progress, transport = "sse" }: Pr
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-1 text-sm text-slate-400">Waiting</p>
+                    <p className="mt-1 text-sm text-pine-muted">Waiting</p>
                   )}
                 </div>
               </li>

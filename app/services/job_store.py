@@ -86,6 +86,13 @@ class JobStore:
     def get_job(self, job_id: str) -> PlanningJobRecord | None:
         return self._jobs.get(job_id)
 
+    def count_active(self) -> int:
+        return sum(
+            1
+            for job in self._jobs.values()
+            if job.status in (JobStatus.QUEUED, JobStatus.RUNNING)
+        )
+
     def set_running(self, job_id: str) -> None:
         job = self._require_job(job_id)
         job.status = JobStatus.RUNNING
