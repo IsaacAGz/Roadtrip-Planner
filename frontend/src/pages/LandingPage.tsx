@@ -1,11 +1,13 @@
 import { motion, useScroll, useTransform } from "motion/react";
-import { useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import desertHighway from "../assets/photos/desert-highway.jpg";
 import heroForest from "../assets/photos/hero-forest.jpg";
 import mountainRoad from "../assets/photos/mountain-road.jpg";
 import { Reveal } from "../components/Reveal";
 import { SiteNav } from "../components/SiteNav";
+import { createTripPayload } from "../components/TripForm";
+import { fieldClass } from "../lib/ui";
 import { usePrefersReducedMotion } from "../lib/usePrefersReducedMotion";
 
 const ease = [0.16, 1, 0.3, 1] as const;
@@ -98,26 +100,16 @@ export function LandingPage() {
           <div className="md:col-start-1 md:row-span-2 md:row-start-1">
             <p className="text-sm text-pine-muted">How it works</p>
             <ol className="mt-8">
-              <Reveal>
-                <li className="flex items-end font-display leading-none tracking-[-0.06em] text-pine">
-                  <span className="relative text-[clamp(7rem,18vw,12rem)] leading-[0.8]">
-                    <span aria-hidden="true">0</span>
-                    <span className="absolute inset-0 flex items-center justify-center px-[24%] text-center text-[0.145em] leading-[1.05] tracking-normal">
-                      <span>
-                        <span className="sr-only">01. </span>
-                        Tell the trip
-                      </span>
-                    </span>
-                  </span>
-                  <span aria-hidden="true" className="-ml-[0.06em] text-[clamp(7rem,18vw,12rem)] leading-[0.8]">
-                    1
-                  </span>
+            <Reveal delay={0.08}>
+                <li className="mt-2 flex items-center gap-5 border-l border-pine/20 py-4 pl-5 text-lg">
+                  <span className="font-display text-xl text-pine-muted">01</span>
+                  Describe the journey
                 </li>
               </Reveal>
               <Reveal delay={0.08}>
                 <li className="mt-2 flex items-center gap-5 border-l border-pine/20 py-4 pl-5 text-lg">
                   <span className="font-display text-xl text-pine-muted">02</span>
-                  Build the days
+                  Set the days
                 </li>
               </Reveal>
               <Reveal delay={0.16}>
@@ -160,16 +152,12 @@ export function LandingPage() {
                 </li>
               ))}
             </ul>
-            <p className="mt-6 flex items-center gap-2 text-sm text-river">
-              <span className="size-2.5 rounded-full bg-river" aria-hidden="true" />
-              Verified
-            </p>
           </Reveal>
         </div>
       </section>
 
       <section id="guide" className="scroll-mt-28 bg-sand-deep px-4 py-28 sm:px-8 md:py-36">
-        <div className="mx-auto grid max-w-6xl items-end gap-16 md:grid-cols-2">
+        <div className="mx-auto grid max-w-6xl items-start gap-12 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] lg:gap-16">
           <div>
             <p className="text-sm text-pine-muted">Before you start</p>
             <h2 className="mt-4 font-display text-[clamp(2.8rem,5vw,4.25rem)] leading-[1.02] tracking-[-0.03em]">
@@ -185,20 +173,8 @@ export function LandingPage() {
             </div>
           </div>
 
-          <Reveal delay={0.1} className="md:justify-self-end">
-            <div className="w-full max-w-sm rounded-2xl border border-pine/15 bg-paper p-5">
-              <div aria-hidden="true" className="space-y-4">
-                <FieldPreview label="Origin" />
-                <FieldPreview label="Destination" />
-                <div className="grid grid-cols-2 gap-3">
-                  <FieldPreview label="Start date" />
-                  <FieldPreview label="End date" />
-                </div>
-              </div>
-              <Link to="/plan" className={`${amberButtonClass} mt-5`}>
-                Plan a trip
-              </Link>
-            </div>
+          <Reveal delay={0.1}>
+            <GuidePlanForm />
           </Reveal>
         </div>
       </section>
@@ -213,7 +189,7 @@ export function LandingPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-pine/70 via-transparent to-transparent" />
         <div className="relative flex min-h-[70vh] items-end justify-center px-4 pb-16">
           <p className="text-center font-display text-[clamp(2rem,4.5vw,3.25rem)] leading-tight tracking-[-0.03em] text-paper">
-            Pine, asphalt, late light
+            Fewer Tabs, More Miles. Smarter Route Planning Powered by AI.
           </p>
         </div>
       </section>
@@ -231,11 +207,99 @@ export function LandingPage() {
   );
 }
 
-function FieldPreview({ label }: { label: string }) {
+function GuidePlanForm() {
+  const navigate = useNavigate();
+  const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextOrigin = origin.trim();
+    const nextDestination = destination.trim();
+    if (!nextOrigin || !nextDestination || !startDate || !endDate) {
+      setError("Enter an origin, a destination, and both dates.");
+      return;
+    }
+    if (endDate < startDate) {
+      setError("End date must be on or after the start date.");
+      return;
+    }
+
+    setError(null);
+    navigate("/plan", {
+      state: {
+        requestId: crypto.randomUUID(),
+        payload: createTripPayload({
+          origin: nextOrigin,
+          destination: nextDestination,
+          startDate,
+          endDate,
+        }),
+      },
+    });
+  }
+
   return (
-    <div>
-      <p className="text-sm text-pine">{label}</p>
-      <div className="mt-1.5 h-9 w-full rounded-lg border border-pine/20 bg-sand" />
-    </div>
+    <form
+      onSubmit={handleSubmit}
+      className="w-full rounded-2xl border border-pine/15 bg-paper p-6 sm:p-8"
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block space-y-1.5 text-sm sm:col-span-1">
+          <span className="font-medium">Origin</span>
+          <input
+            required
+            value={origin}
+            onChange={(event) => setOrigin(event.target.value)}
+            className={fieldClass}
+            placeholder="San Jose, CA"
+            autoComplete="off"
+          />
+        </label>
+        <label className="block space-y-1.5 text-sm">
+          <span className="font-medium">Destination</span>
+          <input
+            required
+            value={destination}
+            onChange={(event) => setDestination(event.target.value)}
+            className={fieldClass}
+            placeholder="Monterey, CA"
+            autoComplete="off"
+          />
+        </label>
+        <label className="block space-y-1.5 text-sm">
+          <span className="font-medium">Start date</span>
+          <input
+            required
+            type="date"
+            value={startDate}
+            onChange={(event) => setStartDate(event.target.value)}
+            className={fieldClass}
+          />
+        </label>
+        <label className="block space-y-1.5 text-sm">
+          <span className="font-medium">End date</span>
+          <input
+            required
+            type="date"
+            value={endDate}
+            min={startDate || undefined}
+            onChange={(event) => setEndDate(event.target.value)}
+            className={fieldClass}
+          />
+        </label>
+      </div>
+      {error && (
+        <p className="mt-4 text-sm text-clay" role="alert">
+          {error}
+        </p>
+      )}
+      <button type="submit" className={`${amberButtonClass} mt-6`}>
+        Plan a trip
+      </button>
+    </form>
   );
 }

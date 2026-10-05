@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   ApiError,
   isTerminalJobStatus,
@@ -15,6 +16,7 @@ import { TripMap } from "./components/TripMap";
 import { ValidationSummary } from "./components/ValidationSummary";
 import { usePlanningJob } from "./hooks/usePlanningJob";
 import mountainRoad from "./assets/photos/mountain-road.jpg";
+import { claimPlanHandoff, readPlanHandoff } from "./lib/planHandoff";
 import { quietButtonClass } from "./lib/ui";
 import {
   clearJobHistory,
@@ -25,6 +27,8 @@ import {
 } from "./lib/jobHistory";
 
 export function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [jobId, setJobId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<ApiError | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,6 +66,18 @@ export function App() {
       setIsSubmitting(false);
     }
   }
+
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
+
+  useEffect(() => {
+    const handoff = readPlanHandoff(location.state);
+    if (!handoff || !claimPlanHandoff(handoff.requestId)) {
+      return;
+    }
+    navigate("/plan", { replace: true, state: null });
+    void handleSubmitRef.current(handoff.payload);
+  }, [location.state, navigate]);
 
   function handleReset() {
     setJobId(null);

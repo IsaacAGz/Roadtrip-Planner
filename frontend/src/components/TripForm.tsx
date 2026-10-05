@@ -31,30 +31,44 @@ export interface TripFormValues {
   minTempC: number;
 }
 
-const defaultValues: TripFormValues = {
-  origin: "San Jose, CA",
-  destination: "Monterey, CA",
-  startDate: "2026-07-15",
-  endDate: "2026-07-15",
-  preferences: "direct route, minimal stops",
-  pace: "moderate",
-  budget: "moderate",
-  accessibility: false,
-  interests: "coastal_views, breweries",
-  maxDrivingHours: 6,
-  maxStopsPerDay: 4,
-  maxReplanAttempts: 2,
-  maxDetourKm: 30,
-  maxBacktrackingPercent: 15,
-  requireProgress: true,
-  allowedCountries: "US, MX",
-  allowExtendedStays: false,
-  maxNightsPerStop: 1,
-  allowReturnStops: false,
-  failOnWeatherWarnings: false,
-  maxPrecipChance: 0.5,
-  minTempC: 10,
-};
+function formatInputDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function defaultTripValues(now = new Date()): TripFormValues {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = new Date(start);
+  end.setDate(end.getDate() + 5);
+
+  return {
+    origin: "San Diego, CA",
+    destination: "San Francisco, CA",
+    startDate: formatInputDate(start),
+    endDate: formatInputDate(end),
+    preferences:
+      "Coastal drive with time for beaches, a Big Sur overlook, and a meal in a harbor town.",
+    pace: "moderate",
+    budget: "moderate",
+    accessibility: false,
+    interests: "beaches, coastal views, state parks, food",
+    maxDrivingHours: 6,
+    maxStopsPerDay: 4,
+    maxReplanAttempts: 2,
+    maxDetourKm: 30,
+    maxBacktrackingPercent: 15,
+    requireProgress: true,
+    allowedCountries: "US, MX",
+    allowExtendedStays: false,
+    maxNightsPerStop: 1,
+    allowReturnStops: false,
+    failOnWeatherWarnings: false,
+    maxPrecipChance: 0.5,
+    minTempC: 10,
+  };
+}
 
 interface TripFormProps {
   disabled?: boolean;
@@ -100,8 +114,23 @@ function buildPayload(values: TripFormValues): TripRequestPayload {
   };
 }
 
+export function createTripPayload(fields: {
+  origin: string;
+  destination: string;
+  startDate: string;
+  endDate: string;
+}): TripRequestPayload {
+  return buildPayload({
+    ...defaultTripValues(),
+    origin: fields.origin,
+    destination: fields.destination,
+    startDate: fields.startDate,
+    endDate: fields.endDate,
+  });
+}
+
 export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
-  const [values, setValues] = useState<TripFormValues>(defaultValues);
+  const [values, setValues] = useState<TripFormValues>(() => defaultTripValues());
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -129,7 +158,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
             value={values.origin}
             onChange={(event) => updateField("origin", event.target.value)}
             className={inputClassName}
-            placeholder="San Jose, CA"
+            placeholder="San Diego, CA"
           />
         </label>
         <label className={labelClassName}>
@@ -139,7 +168,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
             value={values.destination}
             onChange={(event) => updateField("destination", event.target.value)}
             className={inputClassName}
-            placeholder="Monterey, CA"
+            placeholder="San Francisco, CA"
           />
         </label>
         <label className={labelClassName}>
