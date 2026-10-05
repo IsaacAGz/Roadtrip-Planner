@@ -83,18 +83,20 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-5">
+    <div className="min-h-screen bg-canvas font-sans text-ink">
+      <header className="border-b border-line bg-surface">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-3 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-6">
           <div>
-            <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Roadtrip Planner</h1>
-            <p className="text-sm text-slate-600">AI itineraries with OSRM-verified driving segments</p>
+            <h1 className="font-serif text-3xl leading-none tracking-[-0.03em] text-ink sm:text-4xl">
+              Roadtrip Planner
+            </h1>
+            <p className="mt-2 text-sm text-muted">AI itineraries with OSRM-verified driving segments</p>
           </div>
           {jobId && (
             <button
               type="button"
               onClick={handleReset}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto"
+              className="w-full rounded-md border border-line bg-surface px-3 py-2 font-sans text-sm font-medium text-ink transition-transform duration-200 hover:bg-canvas active:scale-[0.98] sm:w-auto"
             >
               Plan another trip
             </button>
@@ -102,18 +104,16 @@ export function App() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-4 px-3 py-6 sm:gap-6 sm:px-4 sm:py-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
-        <aside className="order-2 lg:order-1 lg:sticky lg:top-6">
-          <JobHistoryPanel
-            entries={history}
-            activeJobId={jobId}
-            onSelect={handleSelectHistoryEntry}
-            onClear={handleClearHistory}
-            onRemove={handleRemoveHistoryEntry}
-          />
-        </aside>
+      <main className="mx-auto grid max-w-6xl gap-8 px-3 py-8 sm:px-4">
+        <JobHistoryPanel
+          entries={history}
+          activeJobId={jobId}
+          onSelect={handleSelectHistoryEntry}
+          onClear={handleClearHistory}
+          onRemove={handleRemoveHistoryEntry}
+        />
 
-        <div className="order-1 grid gap-4 sm:gap-6 lg:order-2">
+        <div className="grid gap-4 sm:gap-6">
           {!jobId && <TripForm disabled={isSubmitting} onSubmit={handleSubmit} />}
 
           {submitError && (

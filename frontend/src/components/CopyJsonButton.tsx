@@ -18,9 +18,9 @@ export function CopyJsonButton({ label = "Copy JSON", value }: CopyJsonButtonPro
     <button
       type="button"
       onClick={handleCopy}
-      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+      className="bg-transparent px-0 py-1 font-sans text-sm font-medium text-ink underline decoration-line underline-offset-4 hover:text-primary-hover"
     >
-      {copied ? "Copied!" : label}
+      {copied ? "Copied" : label}
     </button>
   );
 }

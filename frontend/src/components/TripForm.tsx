@@ -60,8 +60,12 @@ interface TripFormProps {
   onSubmit: (payload: TripRequestPayload) => void;
 }
 
-const inputClassName = "w-full rounded-lg border border-slate-300 px-3 py-2";
-const labelClassName = "block space-y-1 text-sm";
+const inputClassName =
+  "w-full rounded-md border border-line bg-surface px-3 py-2 font-sans text-sm text-ink placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-50";
+const numberClassName = `${inputClassName} font-mono`;
+const labelClassName = "block space-y-1 text-sm text-ink";
+const hintClassName = "text-xs text-muted";
+const checkClassName = "h-4 w-4 accent-primary";
 
 function buildPayload(values: TripFormValues): TripRequestPayload {
   const interests = parseCommaList(values.interests);
@@ -112,17 +116,17 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border border-line bg-surface p-6 sm:p-8">
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">Plan a road trip</h2>
-        <p className="mt-1 text-sm text-slate-600">
+        <h2 className="font-serif text-3xl leading-none tracking-[-0.03em] text-ink">Plan a road trip</h2>
+        <p className="mt-2 text-sm text-muted">
           Submit your route and dates. Planning runs in the background while you watch progress.
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className={labelClassName}>
-          <span className="font-medium text-slate-700">Origin</span>
+          <span className="font-medium">Origin</span>
           <input
             required
             value={values.origin}
@@ -132,7 +136,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
           />
         </label>
         <label className={labelClassName}>
-          <span className="font-medium text-slate-700">Destination</span>
+          <span className="font-medium">Destination</span>
           <input
             required
             value={values.destination}
@@ -142,7 +146,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
           />
         </label>
         <label className={labelClassName}>
-          <span className="font-medium text-slate-700">Start date</span>
+          <span className="font-medium">Start date</span>
           <input
             required
             type="date"
@@ -152,7 +156,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
           />
         </label>
         <label className={labelClassName}>
-          <span className="font-medium text-slate-700">End date</span>
+          <span className="font-medium">End date</span>
           <input
             required
             type="date"
@@ -166,7 +170,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
       <Accordion title="Structured preferences" description="Pace, budget, accessibility, and interests">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className={labelClassName}>
-            <span className="font-medium text-slate-700">Pace</span>
+            <span className="font-medium">Pace</span>
             <select
               value={values.pace}
               onChange={(event) => updateField("pace", event.target.value as Pace)}
@@ -178,7 +182,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
             </select>
           </label>
           <label className={labelClassName}>
-            <span className="font-medium text-slate-700">Budget</span>
+            <span className="font-medium">Budget</span>
             <select
               value={values.budget}
               onChange={(event) => updateField("budget", event.target.value as Budget)}
@@ -195,37 +199,37 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
             type="checkbox"
             checked={values.accessibility}
             onChange={(event) => updateField("accessibility", event.target.checked)}
-            className="h-4 w-4 rounded border-slate-300"
+            className={checkClassName}
           />
-          <span className="font-medium text-slate-700">Prefer accessible venues and routes</span>
+          <span className="font-medium">Prefer accessible venues and routes</span>
         </label>
         <label className={`${labelClassName} mt-4`}>
-          <span className="font-medium text-slate-700">Interests</span>
+          <span className="font-medium">Interests</span>
           <input
             value={values.interests}
             onChange={(event) => updateField("interests", event.target.value)}
             className={inputClassName}
             placeholder="breweries, coastal_views, museums"
           />
-          <span className="text-xs text-slate-500">Comma-separated, up to 10 interests</span>
+          <span className={hintClassName}>Comma-separated, up to 10 interests</span>
         </label>
       </Accordion>
 
       <label className={labelClassName}>
-        <span className="font-medium text-slate-700">Additional notes</span>
+        <span className="font-medium">Additional notes</span>
         <textarea
           value={values.preferences}
           onChange={(event) => updateField("preferences", event.target.value)}
-          className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2"
+          className={`${inputClassName} min-h-20`}
           placeholder="Any extra guidance for the planner"
         />
       </label>
 
       <div>
-        <h3 className="text-sm font-semibold text-slate-900">Core constraints</h3>
+        <h3 className="text-sm font-medium text-ink">Core constraints</h3>
         <div className="mt-3 grid gap-4 sm:grid-cols-3">
           <label className={labelClassName}>
-            <span className="font-medium text-slate-700">Max driving hours / day</span>
+            <span className="font-medium">Max driving hours / day</span>
             <input
               type="number"
               min={1}
@@ -233,29 +237,29 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
               step={0.5}
               value={values.maxDrivingHours}
               onChange={(event) => updateField("maxDrivingHours", Number(event.target.value))}
-              className={inputClassName}
+              className={numberClassName}
             />
           </label>
           <label className={labelClassName}>
-            <span className="font-medium text-slate-700">Max stops / day</span>
+            <span className="font-medium">Max stops / day</span>
             <input
               type="number"
               min={1}
               max={8}
               value={values.maxStopsPerDay}
               onChange={(event) => updateField("maxStopsPerDay", Number(event.target.value))}
-              className={inputClassName}
+              className={numberClassName}
             />
           </label>
           <label className={labelClassName}>
-            <span className="font-medium text-slate-700">Max replan attempts</span>
+            <span className="font-medium">Max replan attempts</span>
             <input
               type="number"
               min={0}
               max={5}
               value={values.maxReplanAttempts}
               onChange={(event) => updateField("maxReplanAttempts", Number(event.target.value))}
-              className={inputClassName}
+              className={numberClassName}
             />
           </label>
         </div>
@@ -267,7 +271,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <label className={labelClassName}>
-            <span className="font-medium text-slate-700">Max detour km / stop</span>
+            <span className="font-medium">Max detour km / stop</span>
             <input
               type="number"
               min={0}
@@ -275,11 +279,11 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
               step={1}
               value={values.maxDetourKm}
               onChange={(event) => updateField("maxDetourKm", Number(event.target.value))}
-              className={inputClassName}
+              className={numberClassName}
             />
           </label>
           <label className={labelClassName}>
-            <span className="font-medium text-slate-700">Max backtracking %</span>
+            <span className="font-medium">Max backtracking %</span>
             <input
               type="number"
               min={0}
@@ -287,14 +291,14 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
               step={1}
               value={values.maxBacktrackingPercent}
               onChange={(event) => updateField("maxBacktrackingPercent", Number(event.target.value))}
-              className={inputClassName}
+              className={numberClassName}
             />
             {values.allowReturnStops && (
-              <span className="text-xs text-slate-500">Clamped to 25% when return stops are enabled</span>
+              <span className={hintClassName}>Clamped to 25% when return stops are enabled</span>
             )}
           </label>
           <label className={labelClassName}>
-            <span className="font-medium text-slate-700">Allowed countries</span>
+            <span className="font-medium">Allowed countries</span>
             <input
               value={values.allowedCountries}
               onChange={(event) => updateField("allowedCountries", event.target.value)}
@@ -303,7 +307,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
             />
           </label>
           <label className={labelClassName}>
-            <span className="font-medium text-slate-700">Max nights / stop</span>
+            <span className="font-medium">Max nights / stop</span>
             <input
               type="number"
               min={1}
@@ -311,46 +315,46 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
               value={values.maxNightsPerStop}
               disabled={!values.allowExtendedStays}
               onChange={(event) => updateField("maxNightsPerStop", Number(event.target.value))}
-              className={inputClassName}
+              className={numberClassName}
             />
           </label>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-ink">
             <input
               type="checkbox"
               checked={values.requireProgress}
               disabled={values.allowReturnStops}
               onChange={(event) => updateField("requireProgress", event.target.checked)}
-              className="h-4 w-4 rounded border-slate-300"
+              className={checkClassName}
             />
             Require progress toward destination
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-ink">
             <input
               type="checkbox"
               checked={values.allowExtendedStays}
               onChange={(event) => updateField("allowExtendedStays", event.target.checked)}
-              className="h-4 w-4 rounded border-slate-300"
+              className={checkClassName}
             />
             Allow extended stays
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-ink">
             <input
               type="checkbox"
               checked={values.allowReturnStops}
               onChange={(event) => updateField("allowReturnStops", event.target.checked)}
-              className="h-4 w-4 rounded border-slate-300"
+              className={checkClassName}
             />
             Allow return stops
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-ink">
             <input
               type="checkbox"
               checked={values.failOnWeatherWarnings}
               onChange={(event) => updateField("failOnWeatherWarnings", event.target.checked)}
-              className="h-4 w-4 rounded border-slate-300"
+              className={checkClassName}
             />
             Fail on weather warnings
           </label>
@@ -359,7 +363,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
         {values.failOnWeatherWarnings && (
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className={labelClassName}>
-              <span className="font-medium text-slate-700">Max precipitation chance</span>
+              <span className="font-medium">Max precipitation chance</span>
               <input
                 type="number"
                 min={0}
@@ -367,11 +371,11 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
                 step={0.05}
                 value={values.maxPrecipChance}
                 onChange={(event) => updateField("maxPrecipChance", Number(event.target.value))}
-                className={inputClassName}
+                className={numberClassName}
               />
             </label>
             <label className={labelClassName}>
-              <span className="font-medium text-slate-700">Min temp (°C)</span>
+              <span className="font-medium">Min temp (°C)</span>
               <input
                 type="number"
                 min={-30}
@@ -379,7 +383,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
                 step={1}
                 value={values.minTempC}
                 onChange={(event) => updateField("minTempC", Number(event.target.value))}
-                className={inputClassName}
+                className={numberClassName}
               />
             </label>
           </div>
@@ -389,7 +393,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
       <button
         type="submit"
         disabled={disabled}
-        className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 sm:w-auto"
+        className="w-full rounded-md bg-primary px-4 py-2.5 font-sans text-sm font-medium text-white transition-transform duration-200 hover:bg-primary-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
       >
         {disabled ? "Planning..." : "Start planning"}
       </button>
