@@ -2,7 +2,15 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import type { TripRequestPayload } from "../api/client";
 import type { Budget, Pace } from "../lib/tripPayload";
-import { parseCommaList } from "../lib/tripPayload";
+import {
+  MAX_INTERESTS_LENGTH,
+  MAX_LOCATION_LENGTH,
+  MAX_NOTES_LENGTH,
+  MAX_TRIP_DAYS,
+  addIsoDays,
+  parseCommaList,
+  tripLengthDays,
+} from "../lib/tripPayload";
 import { fieldClass, primaryButtonClass } from "../lib/ui";
 import { Accordion } from "./Accordion";
 
@@ -131,9 +139,15 @@ export function createTripPayload(fields: {
 
 export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
   const [values, setValues] = useState<TripFormValues>(() => defaultTripValues());
+  const [formError, setFormError] = useState<string | null>(null);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (tripLengthDays(values.startDate, values.endDate) > MAX_TRIP_DAYS) {
+      setFormError(`A trip can be at most ${MAX_TRIP_DAYS} days.`);
+      return;
+    }
+    setFormError(null);
     onSubmit(buildPayload(values));
   }
 
@@ -155,6 +169,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
           <span className="font-medium text-pine">Origin</span>
           <input
             required
+            maxLength={MAX_LOCATION_LENGTH}
             value={values.origin}
             onChange={(event) => updateField("origin", event.target.value)}
             className={inputClassName}
@@ -165,6 +180,7 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
           <span className="font-medium text-pine">Destination</span>
           <input
             required
+            maxLength={MAX_LOCATION_LENGTH}
             value={values.destination}
             onChange={(event) => updateField("destination", event.target.value)}
             className={inputClassName}
@@ -187,6 +203,8 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
             required
             type="date"
             value={values.endDate}
+            min={values.startDate || undefined}
+            max={values.startDate ? addIsoDays(values.startDate, MAX_TRIP_DAYS - 1) : undefined}
             onChange={(event) => updateField("endDate", event.target.value)}
             className={inputClassName}
           />
@@ -233,11 +251,14 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
           <span className="font-medium text-pine">Interests</span>
           <input
             value={values.interests}
+            maxLength={MAX_INTERESTS_LENGTH}
             onChange={(event) => updateField("interests", event.target.value)}
             className={inputClassName}
             placeholder="breweries, coastal_views, museums"
           />
-          <span className="text-xs text-pine-muted">Comma-separated, up to 10 interests</span>
+          <span className="text-xs text-pine-muted">
+            Comma-separated, up to 10 interests, 40 characters each
+          </span>
         </label>
       </Accordion>
 
@@ -245,11 +266,17 @@ export function TripForm({ disabled = false, onSubmit }: TripFormProps) {
         <span className="font-medium text-pine">Additional notes</span>
         <textarea
           value={values.preferences}
+          maxLength={MAX_NOTES_LENGTH}
           onChange={(event) => updateField("preferences", event.target.value)}
           className={`${inputClassName} min-h-20`}
           placeholder="Any extra guidance for the planner"
         />
       </label>
+      {formError && (
+        <p className="text-sm text-clay" role="alert">
+          {formError}
+        </p>
+      )}
 
       <div>
         <h3 className="font-display text-xl tracking-[-0.02em] text-pine">Core constraints</h3>

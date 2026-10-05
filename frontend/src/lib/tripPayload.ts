@@ -34,6 +34,26 @@ export interface TripRequestPayload {
   constraints?: TripConstraints;
 }
 
+export const MAX_TRIP_DAYS = 14;
+export const MAX_LOCATION_LENGTH = 120;
+export const MAX_NOTES_LENGTH = 1000;
+export const MAX_INTERESTS_LENGTH = 500;
+
+export function addIsoDays(isoDate: string, days: number): string {
+  const date = new Date(`${isoDate}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function tripLengthDays(startDate: string, endDate: string): number {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+}
+
 export function parseCommaList(value: string): string[] {
   return value
     .split(",")

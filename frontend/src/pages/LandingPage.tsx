@@ -7,6 +7,7 @@ import mountainRoad from "../assets/photos/mountain-road.jpg";
 import { Reveal } from "../components/Reveal";
 import { SiteNav } from "../components/SiteNav";
 import { createTripPayload } from "../components/TripForm";
+import { MAX_LOCATION_LENGTH, MAX_TRIP_DAYS, addIsoDays, tripLengthDays } from "../lib/tripPayload";
 import { fieldClass } from "../lib/ui";
 import { usePrefersReducedMotion } from "../lib/usePrefersReducedMotion";
 
@@ -227,6 +228,10 @@ function GuidePlanForm() {
       setError("End date must be on or after the start date.");
       return;
     }
+    if (tripLengthDays(startDate, endDate) > MAX_TRIP_DAYS) {
+      setError(`A trip can be at most ${MAX_TRIP_DAYS} days.`);
+      return;
+    }
 
     setError(null);
     navigate("/plan", {
@@ -252,6 +257,7 @@ function GuidePlanForm() {
           <span className="font-medium">Origin</span>
           <input
             required
+            maxLength={MAX_LOCATION_LENGTH}
             value={origin}
             onChange={(event) => setOrigin(event.target.value)}
             className={fieldClass}
@@ -263,6 +269,7 @@ function GuidePlanForm() {
           <span className="font-medium">Destination</span>
           <input
             required
+            maxLength={MAX_LOCATION_LENGTH}
             value={destination}
             onChange={(event) => setDestination(event.target.value)}
             className={fieldClass}
@@ -287,6 +294,7 @@ function GuidePlanForm() {
             type="date"
             value={endDate}
             min={startDate || undefined}
+            max={startDate ? addIsoDays(startDate, MAX_TRIP_DAYS - 1) : undefined}
             onChange={(event) => setEndDate(event.target.value)}
             className={fieldClass}
           />
